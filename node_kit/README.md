@@ -363,6 +363,25 @@ Findings the engineer should read:
 4. Mass floor at ~7.4 kg comes from castability + layout-validity fences,
    not strength.
 
+## Milestone 8 + final part (2026-08)
+
+Second search on the SPLIT pinwheel half (architecture E, hot-spot at the
+foundry-flagged 3.0 ratio): 33/33 FEA-evaluated candidates feasible.
+
+**Final recommended part `48d1b446e2`: 6.47 kg per half** — wall 13.2,
+engagement 147, boss Ø61.7, M10 spine bolts ×6. Governing: post-wall
+bearing 0.75 (LC2) — the philosophy holds for the split part. Full rows
+in runs/results.parquet; renders in runs/final_part_views.png.
+
+pattern.py exports (runs/pattern/): shrink-scaled (×1.02) pattern STEP +
+STL with 3 mm machining allowance on functional faces, drilled holes cast
+solid, rod groove cast undersize; pattern bbox 202×202×167 mm — prints in
+ONE piece on a 256 mm-cube machine (auto-split with alignment dowels
+implemented and tested for larger parts). Draft is recorded for the
+patternmaker, not modelled on the solid (documented in pattern.py).
+
+## Validation gates (Milestone 3) — results
+
 | Gate | Benchmark | Acceptance | Result |
 |------|-----------|------------|--------|
 | 1 | Cantilever tip deflection vs PL³/3EI | < 2 % | **0.20 %** ✓ |

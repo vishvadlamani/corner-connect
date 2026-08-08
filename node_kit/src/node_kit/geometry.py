@@ -293,10 +293,14 @@ def build_node(p: NodeParams, with_fillets: bool = True,
                             rod hole is cast in, small bolt holes are
                             drilled from solid)
     """
-    validate_hole_layout(p)
     hole_mode = {True: "all", False: "none"}.get(with_holes, with_holes)
     if hole_mode not in ("all", "none", "cast_only"):
         raise ValueError(f"bad with_holes {with_holes!r}")
+    if hole_mode == "all":
+        # drilled-hole layout rules only apply when those holes exist
+        # (the foundry pattern casts them solid and drills to the
+        # as-machined drawing, whose own build re-validates)
+        validate_hole_layout(p)
 
     half = p.post_size / 2
     t = p.wall_thickness
