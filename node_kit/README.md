@@ -54,6 +54,35 @@ pytest                          # all tests incl. validation gates
 python -m node_kit.cli export   # default node STEP + STL into runs/
 ```
 
+## System classification (owner decision, 2026-08)
+
+**Panelized post-and-beam kit** — the frame (nodes + posts + beams) is the
+complete structural system to give open floor plans; wall/floor panels are
+NON-loadbearing infill. NOT volumetric/modular. Kit drawing rule that
+follows: infill panels connect with deflection-head / slotted details so
+frame movement never loads them (load follows stiffness, not intention).
+
+## Adopted norms (owner delegated: "research the norm in LGSF and do it")
+
+Encoded in params.py; every value is a defensible LGSF-practice default,
+NOT site-specific engineering — the sealing engineer confirms or replaces:
+
+| Quantity | Value | Basis |
+|---|---|---|
+| Floor live load | 1.92 kPa (40 psf) | IRC/ASCE 7 residential |
+| Floor dead load | 1.20 kPa (~25 psf) | LGSF floor + partitions/services |
+| Facade dead | 0.75 kPa | panelized facade allowance |
+| Wind pressure | 1.00 kPa | **PLACEHOLDER — site-specific (ASCE 7)** |
+| Grid / bay | 6.0 m | practical CFS floor span limit (open plans) |
+| Storey height | 3.0 m | LGSF practice |
+| Storeys | 5 | owner: "at least 5" |
+| Design method | LRFD, ASCE 7 factors | modern engineered CFS design |
+| Post | 150 mm sq, 97 mil | built-up CFS box practice; Chapter E member check pending |
+
+Resulting LC magnitudes at the ground-storey corner node (LRFD level):
+LC1 = 203 kN, LC2 = 86 kN, LC3 = LC4 = 40.6 kN, LC5 combined (see
+`params.default_load_cases()` for the tributary derivation, written out).
+
 ## ⚠️ Placeholders awaiting real values — DO NOT DESIGN AGAINST THESE
 
 The project owner has **not yet supplied** the following. Current values are
@@ -66,7 +95,7 @@ Any optimisation output produced with them is meaningless for design.
 | LC2 rod uplift          | 40 kN | " |
 | LC3 bracket shear X     | 20 kN | " |
 | LC4 bracket shear Y     | 20 kN | " |
-| Post outer size         | 150 mm square | roll-former's actual section |
+| Post outer size         | 150 mm square (norm-based) | roll-former confirmation |
 | Post gauge              | 97 mil | actual gauge |
 | CFS coil grade          | 50 ksi (Fy 345 / Fu 450 MPa) | actual coil spec |
 | Bolt grade              | ISO 8.8 | actual fastener spec |
@@ -75,6 +104,24 @@ Also unstated: whether load magnitudes are ASD or LRFD level. The check layer
 (Milestone 4) keeps capacities unfactored and applies the resistance/safety
 factor at the demand/capacity step, so this must be resolved before results
 are read.
+
+## Castability (Milestone 5) — first real design change from the pipeline
+
+The undercut screen (voxel-column parity along the declared pull axis)
+proved geometry v1 UNMOLDABLE on the declared diagonal parting: the boss
+bulged past each leg's outer face, trapping 14.9 % of mold columns in
+reentrant pockets (same at the rib collar ring). Geometry v2 adds
+45-degree TANGENT WEBS blending boss->legs and ring->ribs; the screen now
+passes (and, as a discriminating control, correctly REJECTS a vertical
+pull, where the rib flanges act as a spool). Knock-on changes: boss
+Ø60->Ø52, bracket holes ±45->±38 mm (faces must stay flat up to the web
+line - enforced in validate_hole_layout), default mass 10.28 -> 9.56 kg.
+
+Checks: min wall, adjacent-section ratio, draft (param, verified on the
+pattern at M8), fillet presence+radius, undercut/core screen, hot-spot
+inscribed-sphere estimate (resolution-limited, tet-mesh based). Limits in
+params.CastabilityLimits are common steel-sand-casting practice —
+**confirm with the actual foundry**.
 
 ## Geometry decisions requiring engineer review
 

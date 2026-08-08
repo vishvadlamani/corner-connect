@@ -97,6 +97,28 @@ BOLT_GRADE_8_8 = Material(
 
 
 # ---------------------------------------------------------------------------
+# Castability limits (sand-cast steel). Foundry-dependent norms - confirm
+# with the actual foundry before sealing; values are common practice for
+# small/medium steel sand castings.
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class CastabilityLimits:
+    min_wall_mm: float = 8.0            # minimum castable wall, steel sand casting
+    max_adjacent_ratio: float = 2.0     # adjacent section thickness ratio (porosity)
+    min_draft_deg: float = 1.5          # minimum pattern draft on zero-draft walls
+    min_fillet_mm: float = 6.0          # minimum internal fillet radius
+    max_inscribed_ratio: float = 2.0    # max inscribed-sphere dia / nominal wall
+    # declared parting: diagonal plane x = y through the corner, mold halves
+    # pull along +/- (1,1,0)/sqrt(2). Chosen because the L is symmetric about
+    # it and every functional face stays mold-formed (verified by the
+    # undercut check in checks/castability.py).
+    parting: str = "diagonal"
+
+
+DEFAULT_CASTABILITY = CastabilityLimits()
+
+
+# ---------------------------------------------------------------------------
 # Node parameters
 # ---------------------------------------------------------------------------
 @dataclass
@@ -135,14 +157,14 @@ class NodeParams:
 
     # ---- tie rod ----
     rod_hole_diameter: float = 22.0   # clearance hole for the continuous rod, mm
-    boss_diameter: float = 60.0       # OD of the vertical corner boss, mm
+    boss_diameter: float = 52.0       # OD of the vertical corner boss, mm
     boss_height: float = 5.0          # raised collar above top face / below bottom face, mm
 
     # ---- beam bracket interface (outer faces of the legs) ----
     # (x, z) hole positions, mm: x measured along the face from the post-face
     # centreline, z measured from node bottom (z=0).
     bracket_bolt_pattern: tuple[tuple[float, float], ...] = (
-        (-45.0, 60.0), (45.0, 60.0), (-45.0, 140.0), (45.0, 140.0),
+        (-38.0, 60.0), (38.0, 60.0), (-38.0, 140.0), (38.0, 140.0),
     )
     bracket_bolt_diameter: float = 16.0  # mm
 
@@ -273,51 +295,79 @@ class LoadCase:
         }
 
 
-# PLACEHOLDER MAGNITUDES - the project owner has not yet supplied real loads.
-# These are round numbers of plausible order for a low-rise LGSF bay corner.
-# DO NOT design against these. See README "Placeholders awaiting real values".
-PLACEHOLDER_LC1_AXIAL_N = 50_000.0      # 50 kN gravity compression
-PLACEHOLDER_LC2_UPLIFT_N = 40_000.0     # 40 kN rod uplift
-PLACEHOLDER_LC3_SHEAR_X_N = 20_000.0    # 20 kN bracket shear, X
-PLACEHOLDER_LC4_SHEAR_Y_N = 20_000.0    # 20 kN bracket shear, Y
+# ---------------------------------------------------------------------------
+# NORM-BASED DESIGN INPUTS (owner delegated: "research what the norm is in
+# LGSF and do it"). Sources in README "Adopted norms". These are defensible
+# defaults for a panelized post-and-beam LGSF kit with open floor plans -
+# NOT site-specific engineering. The sealing engineer must confirm every one.
+# ---------------------------------------------------------------------------
+FLOOR_LIVE_KPA = 1.92     # 40 psf residential live load (IRC / ASCE 7)
+FLOOR_DEAD_KPA = 1.20     # ~25 psf: LGSF floor system + partitions/services
+FACADE_DEAD_KPA = 0.75    # panelized facade self weight per face area
+WIND_PRESSURE_KPA = 1.00  # PLACEHOLDER - genuinely site-specific (ASCE 7)
+BAY_M = 6.0               # grid, set by practical CFS floor span (~6 m)
+STOREY_M = 3.0            # storey height
+N_STOREYS_DEFAULT = 5     # owner: "at least 5 storeys"
+
+# LRFD adopted as the pipeline's design method (modern engineered-design
+# norm under AISI S100; owner may flip to ASD - checks keep capacities
+# nominal either way). Load factors: ASCE 7 strength combinations.
+DESIGN_METHOD = "LRFD"
+LF_DEAD, LF_LIVE, LF_WIND, LF_DEAD_COUNTER = 1.2, 1.6, 1.0, 0.9
 
 
-def default_load_cases(n_storeys: int = 1) -> list[LoadCase]:
-    """The five contract load cases, at PLACEHOLDER magnitudes.
+def default_load_cases(n_storeys: int = N_STOREYS_DEFAULT) -> list[LoadCase]:
+    """The five contract load cases at NORM-DERIVED magnitudes (LRFD level).
 
-    Multi-storey stacking model (n_storeys = storeys above and including the
-    node's own storey; a 5-storey building's ground-level node has
-    n_storeys=5):
+    Tributary model (documented so the sealing engineer can strike any line):
+      * Building-corner node of a BAY_M x BAY_M grid; tributary floor area
+        A = (BAY_M/2)^2 per storey.
+      * One-way joists: one beam at the corner carries the floor strip
+        (w = qu * BAY_M/2, end reaction w*L/2 = qu*A), the orthogonal beam
+        carries facade only. The kit is symmetric, so BOTH brackets are
+        designed for the floor-beam reaction (LC3 and LC4 individually);
+        the combined case LC5 pairs one floor beam with one facade beam,
+        which is the realizable simultaneous condition.
+      * Gravity: qu = 1.2*D + 1.6*L per storey; axial accumulates linearly
+        over n_storeys.
+      * Uplift LC2: wind overturning of one braced corner line -
+        storey force = WIND_PRESSURE_KPA * BAY_M * STOREY_M at each level,
+        overturning moment about the base over lever arm BAY_M, minus the
+        0.9*D counterweight tributary to the corner. WIND_PRESSURE_KPA is a
+        PLACEHOLDER (site-specific); everything downstream of it is too.
 
-      * Axial compression and rod uplift ACCUMULATE linearly down the stack
-        (placeholder model - real accumulation needs the building's dead/live
-        distribution and net-uplift combinations from the owner).
-      * Beam bracket shears do NOT accumulate: each level's beams carry only
-        that level's floor. Lateral storey shear accumulates in the BRACING
-        system, not in the beam brackets (bracing scheme TBD by owner).
-
-    LOAD PATH ASSUMPTION (critical, engineer to confirm): storeys stack
-    node-bearing-on-node with a continuous tie rod, so accumulated
-    compression passes casting-to-casting through the machined top/bottom
-    faces and accumulated uplift passes through the rod. Neither routes
-    through the thin CFS post wall; the post-wall bolt group sees only the
-    node's own-storey beam reactions. FEA boundary conditions in fea.py
-    apply the stacked loads to the bearing faces / rod hole accordingly.
+    LOAD PATH ASSUMPTION (unchanged, engineer to confirm): accumulated
+    compression crosses each storey joint by post continuity or direct
+    bearing (architecture A/B, see README), accumulated uplift by the rod;
+    the post-wall bolt group sees only own-storey beam reactions.
     """
     if n_storeys < 1:
         raise ValueError("n_storeys must be >= 1")
     n = float(n_storeys)
+    A_trib = (BAY_M / 2.0) ** 2                              # m^2
+    qu = LF_DEAD * FLOOR_DEAD_KPA + LF_LIVE * FLOOR_LIVE_KPA  # kPa (kN/m^2)
+    per_storey_N = qu * A_trib * 1e3                          # N
+    floor_beam_reaction_N = per_storey_N                      # = w*L/2, see docstring
+    facade_beam_reaction_N = (LF_DEAD * FACADE_DEAD_KPA
+                              * STOREY_M * (BAY_M / 2.0) * 1e3)
+
+    storey_shear_N = WIND_PRESSURE_KPA * BAY_M * STOREY_M * 1e3
+    m_ot_Nm = sum(storey_shear_N * STOREY_M * i for i in range(1, n_storeys + 1))
+    counterweight_N = LF_DEAD_COUNTER * FLOOR_DEAD_KPA * A_trib * 1e3 * n
+    uplift_N = max(0.0, LF_WIND * m_ot_Nm / BAY_M - counterweight_N)
+
     return [
-        LoadCase("LC1", f"axial compression down the post (gravity, x{n_storeys} storeys)",
-                 axial_N=n * PLACEHOLDER_LC1_AXIAL_N),
-        LoadCase("LC2", f"tension through the rod hole (uplift, x{n_storeys} storeys)",
-                 rod_tension_N=n * PLACEHOLDER_LC2_UPLIFT_N),
-        LoadCase("LC3", "beam bracket shear into the node, X (own storey)",
-                 shear_x_N=PLACEHOLDER_LC3_SHEAR_X_N),
-        LoadCase("LC4", "beam bracket shear into the node, Y (own storey)",
-                 shear_y_N=PLACEHOLDER_LC4_SHEAR_Y_N),
-        LoadCase("LC5", "combined LC1 + LC3 + LC4",
-                 axial_N=n * PLACEHOLDER_LC1_AXIAL_N,
-                 shear_x_N=PLACEHOLDER_LC3_SHEAR_X_N,
-                 shear_y_N=PLACEHOLDER_LC4_SHEAR_Y_N),
+        LoadCase("LC1", f"axial compression (gravity, {n_storeys} storeys, LRFD)",
+                 axial_N=n * per_storey_N),
+        LoadCase("LC2", f"rod uplift (wind overturning, {n_storeys} storeys, "
+                        "0.9D counterweight, PLACEHOLDER wind)",
+                 rod_tension_N=uplift_N),
+        LoadCase("LC3", "bracket shear X (floor-beam end reaction, own storey)",
+                 shear_x_N=floor_beam_reaction_N),
+        LoadCase("LC4", "bracket shear Y (floor-beam end reaction, own storey)",
+                 shear_y_N=floor_beam_reaction_N),
+        LoadCase("LC5", "combined: stacked gravity + floor beam X + facade beam Y",
+                 axial_N=n * per_storey_N,
+                 shear_x_N=floor_beam_reaction_N,
+                 shear_y_N=facade_beam_reaction_N),
     ]

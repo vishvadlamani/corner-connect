@@ -118,6 +118,21 @@ def validate_hole_layout(p: NodeParams) -> None:
                     f"bracket hole at z={z} on leg {leg} intersects rib band "
                     f"[{z0}, {z0 + p.rib_thickness}]"
                 )
+    # face holes must stop short of the corner tangent web: heads and
+    # bracket plates need the leg outer face flat up to the web line
+    s_wedge = wedge_start_s(p)
+    for (leg, s, z) in post_bolt_positions(p):
+        if s + p.bolt_diameter / 2 > s_wedge:
+            raise ValueError(
+                f"post bolt at s={s} on leg {leg} reaches under the corner "
+                f"web (limit s+r <= {s_wedge:.1f})"
+            )
+    for (leg, s, z) in bracket_hole_positions(p):
+        if s + p.bracket_bolt_diameter / 2 > s_wedge:
+            raise ValueError(
+                f"bracket hole at s={s} on leg {leg} reaches under the "
+                f"corner web (limit s+r <= {s_wedge:.1f})"
+            )
     # no face hole may sit behind the vertical end-rib band (fastener heads
     # and bracket plates need the leg outer face flat there)
     if p.end_rib_thickness > 0:
@@ -175,8 +190,58 @@ def _cyl_z(cx, cy, r, z0, z1) -> cq.Workplane:
     )
 
 
-def build_node(p: NodeParams, with_fillets: bool = True) -> BuildResult:
-    """Build the as-machined node solid. Deterministic for identical params."""
+def _poly_prism(pts2d, z0, z1) -> cq.Workplane:
+    return (
+        cq.Workplane("XY")
+        .workplane(offset=z0)
+        .polyline(pts2d)
+        .close()
+        .extrude(z1 - z0)
+    )
+
+
+def wedge_start_s(p: NodeParams) -> float:
+    """In-face coordinate where the corner tangent web meets the leg outer
+    face. Face holes (post bolts, bracket bolts) must satisfy
+    s + hole_radius <= wedge_start_s so heads and bracket plates seat flat."""
+    return (p.post_size / 2 + p.wall_thickness
+            - (p.boss_diameter / 2) * math.sqrt(2.0))
+
+
+def _corner_wedges(cx: float, cy: float, face: float, radius: float,
+                   half: float, z0: float, z1: float) -> list[cq.Workplane]:
+    """Two 45-degree tangent-web prisms blending a corner cylinder
+    (boss or rib collar ring) into the leg/rib outer faces.
+
+    Without them the cylinder bulges past each outer face and forms a
+    reentrant pocket that traps mold material for the declared diagonal
+    parting (found by checks/castability.undercut_check on geometry v1).
+    The web runs from the face along the 45-degree tangent line to the
+    tangency point T = (cx - r/sqrt2, cy + r/sqrt2); beyond T the cylinder
+    surface recedes from the pull direction, so no pocket remains.
+    """
+    s2 = math.sqrt(2.0)
+    rt = radius / s2
+    x0 = max(face - radius * s2, -half)      # tangent crossing of the face
+    T = (cx - rt, cy + rt)
+    if cx >= face:
+        poly_b = [(x0, face), T, (cx, cy), (cx, face)]
+    else:
+        # tangent-to-centre line y = cx + cy - x re-crosses the face plane
+        poly_b = [(x0, face), T, (cx + cy - face, face)]
+    poly_a = [(y, x) for (x, y) in poly_b]   # mirror across the diagonal
+    return [_poly_prism(poly_b, z0, z1), _poly_prism(poly_a, z0, z1)]
+
+
+def build_node(p: NodeParams, with_fillets: bool = True,
+               with_holes: bool = True) -> BuildResult:
+    """Build the node solid. Deterministic for identical params.
+
+    with_holes=False suppresses every hole (rod, post bolts, brackets) and
+    yields the as-cast form used by the castability moldability/hot-spot
+    screens and (with shrink/allowance) the foundry pattern: holes are cast
+    blind/undersize or drilled, so they must not count as mold features.
+    """
     validate_hole_layout(p)
 
     half = p.post_size / 2
@@ -196,12 +261,18 @@ def build_node(p: NodeParams, with_fillets: bool = True) -> BuildResult:
 
     body = leg_a.union(leg_b).union(corner).union(boss)
 
+    for w in _corner_wedges(cx, cy, half + t, boss_r, half, 0, L):
+        body = body.union(w)
+
     for z0 in rib_levels(p):
         z1 = z0 + p.rib_thickness
         rib_a = _box(half + t, half + t + p.rib_depth, -half, half + t, z0, z1)
         rib_b = _box(-half, half + t, half + t, half + t + p.rib_depth, z0, z1)
         ring = _cyl_z(cx, cy, boss_r + p.rib_depth, z0, z1)
         body = body.union(rib_a).union(rib_b).union(ring)
+        for w in _corner_wedges(cx, cy, half + t + p.rib_depth,
+                                boss_r + p.rib_depth, half, z0, z1):
+            body = body.union(w)
 
     # vertical closure ribs at the leg free ends (cast analogue of a folded
     # sheet-metal edge return); optimiser knob, off when thickness == 0
@@ -221,6 +292,30 @@ def build_node(p: NodeParams, with_fillets: bool = True) -> BuildResult:
     body = body.cut(post_prism)
 
     # --- holes --------------------------------------------------------------
+    if with_holes:
+        body = _cut_holes(body, p, half, t, L, bh, cx, cy)
+
+    # --- fillets (vertical edges only, v1) ----------------------------------
+    fillets_applied = False
+    radius_used = 0.0
+    if with_fillets and p.fillet_radius > 0:
+        body, fillets_applied, radius_used, fw = _try_fillets(body, p)
+        warnings.extend(fw)
+
+    solid = body
+    vol = solid.val().Volume()
+    mass = vol * p.casting_material.density
+    return BuildResult(
+        solid=solid,
+        fillets_applied=fillets_applied,
+        fillet_radius_used=radius_used,
+        volume_mm3=vol,
+        mass_kg=mass,
+        warnings=warnings,
+    )
+
+
+def _cut_holes(body, p: NodeParams, half, t, L, bh, cx, cy):
     body = body.cut(_cyl_z(cx, cy, p.rod_hole_diameter / 2,
                            -bh - L, 2 * L + bh))
 
@@ -248,25 +343,7 @@ def build_node(p: NodeParams, with_fillets: bool = True) -> BuildResult:
         body = _cut_face_hole(body, leg, s, z, p.bolt_diameter)
     for (leg, s, z) in bracket_hole_positions(p):
         body = _cut_face_hole(body, leg, s, z, p.bracket_bolt_diameter)
-
-    # --- fillets (vertical edges only, v1) ----------------------------------
-    fillets_applied = False
-    radius_used = 0.0
-    if with_fillets and p.fillet_radius > 0:
-        body, fillets_applied, radius_used, fw = _try_fillets(body, p)
-        warnings.extend(fw)
-
-    solid = body
-    vol = solid.val().Volume()
-    mass = vol * p.casting_material.density
-    return BuildResult(
-        solid=solid,
-        fillets_applied=fillets_applied,
-        fillet_radius_used=radius_used,
-        volume_mm3=vol,
-        mass_kg=mass,
-        warnings=warnings,
-    )
+    return body
 
 
 def _vertical_edges(body: cq.Workplane, p: NodeParams,
