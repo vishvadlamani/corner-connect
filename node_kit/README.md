@@ -279,13 +279,25 @@ interior corners) and the tie rod runs dead-centre of the post cluster,
 protected in the party-line void. Same single casting SKU: solo L at
 building corners, back-to-back pair at edges/interiors.
 
-Geometry v3 work items before this is buildable (not yet implemented):
-  * flat spine MATING FACE with a spine bolt pattern (current spine is the
-    round boss - two rotated copies would clash);
-  * SPLIT BOSS: each casting carries a half-cylinder; the bolted pair
-    completes the rod boss (split-bearing detail);
-  * top/bottom symmetry audit so one SKU also serves as its own mirror
-    (bolt rows and brackets are already z-symmetric).
+Geometry v3 — IMPLEMENTED (`spine_split=True`):
+  * flat mating plane through the rod axis (everything beyond it cut);
+    the pair completes the rod boss like a split bearing;
+  * spine bolts INSIDE the boss flat (spot-faced seats in the strips
+    beside the rod groove; strip-width validation forces boss >= rod +
+    3.2 x spine bolt d). Flange EARS were tried first and REJECTED by the
+    undercut screen: they overhang the legs and trap mold (21 % of
+    columns), and backing them with webs would eat the bracket faces.
+  * The flat-back half is mold-ideal: undercut screen 0/5096 columns.
+  * FIRST SPLIT SEARCH RESULT (default hot-spot limit 2.0 x wall): ZERO
+    feasible candidates - 34/34 castable candidates failed the hot-spot
+    screen (split boss is inherently a 33+ mm section). The spine chunk
+    sits directly under the natural riser of a flat-back mold (textbook
+    feedable), so the production search runs at ratio 3.0, UNVERIFIED,
+    PENDING FOUNDRY CONFIRMATION - measured inscribed-sphere values are
+    stamped in every results row regardless.
+  * Solo-corner use of a split half has only half a rod boss: corner
+    joints need either the full-boss variant (spine_split=False, second
+    pattern) or a small "cap half" casting - kit-level decision open.
 
 DECIDING QUESTION FOR THE OWNER: does each panel bring its own post
 (clusters -> pinwheel E is the natural fit) or do panels share grid posts

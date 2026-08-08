@@ -214,6 +214,38 @@ def _poly_prism(pts2d, z0, z1) -> cq.Workplane:
     )
 
 
+def spine_bolt_positions(p: NodeParams) -> list[tuple[float, float]]:
+    """Spine bolt centres as (s, z): s along the mating-plane direction
+    d = (-1, 1)/sqrt2 measured from the rod axis; two columns at the
+    middle of the flat strips between the rod groove and the boss edge
+    (spot-faced seats), spine_bolt_rows rows evenly between edge
+    distances."""
+    if not p.spine_split:
+        return []
+    s_col = (p.rod_hole_diameter / 2 + p.boss_diameter / 2) / 2
+    e = p.bolt_edge_distance
+    n = p.spine_bolt_rows
+    zs = [e + i * (p.engagement_length - 2 * e) / (n - 1) for i in range(n)]
+    return [(sgn * s_col, z) for sgn in (-1.0, 1.0) for z in zs]
+
+
+def _spine_frame(p: NodeParams):
+    """Mating-plane frame: origin at the rod axis, n = outward plane
+    normal (1,1)/sqrt2, d = in-plane direction (-1,1)/sqrt2."""
+    cx, cy = p.rod_center_xy
+    s2 = math.sqrt(2.0)
+    return (cx, cy), (1 / s2, 1 / s2), (-1 / s2, 1 / s2)
+
+
+def _rotbox(center_xy, along_n, along_d, z0, z1) -> cq.Workplane:
+    """Box aligned with the spine frame: extents along_n x along_d x z."""
+    box = (cq.Workplane("XY")
+           .box(along_n, along_d, z1 - z0, centered=(True, True, False))
+           .rotate((0, 0, 0), (0, 0, 1), 45.0)
+           .translate((center_xy[0], center_xy[1], z0)))
+    return box
+
+
 def wedge_start_s(p: NodeParams) -> float:
     """In-face coordinate where the corner tangent web meets the leg outer
     face. Face holes (post bolts, bracket bolts) must satisfy
@@ -321,10 +353,33 @@ def build_node(p: NodeParams, with_fillets: bool = True,
     # (oversized in -x/-y so the cut faces are exactly the post face planes)
     body = body.cut(post_prism)
 
+    # --- pinwheel spine split (architecture E) -------------------------------
+    # Remove everything beyond the flat mating plane through the rod axis
+    # (half the boss, the block corner). The pair of halves completes the
+    # boss like a split bearing; spine bolts sit in the boss-flat strips.
+    if p.spine_split:
+        (sx, sy), n_hat, d_hat = _spine_frame(p)
+        cut_center = (sx + n_hat[0] * 150, sy + n_hat[1] * 150)
+        body = body.cut(_rotbox(cut_center, 300, 800, -bh - L, 2 * L + bh))
+
     # --- holes --------------------------------------------------------------
     if hole_mode != "none":
         body = _cut_holes(body, p, half, t, L, bh, cx, cy,
                           drilled=(hole_mode == "all"))
+        if p.spine_split and hole_mode == "all":
+            (sx, sy), n_hat, d_hat = _spine_frame(p)
+            r = p.spine_bolt_diameter / 2
+            depth = p.boss_diameter
+            for (s, z) in spine_bolt_positions(p):
+                x0 = sx + d_hat[0] * s + n_hat[0] * 2.0
+                y0 = sy + d_hat[1] * s + n_hat[1] * 2.0
+                # cylinder along -n (into the flange), built by rotating a
+                # +z cylinder: +z -> +x (about y), then +x -> -n (about z)
+                cyl = (cq.Workplane("XY").circle(r).extrude(depth + 4.0)
+                       .rotate((0, 0, 0), (0, 1, 0), 90)
+                       .rotate((0, 0, 0), (0, 0, 1), 225)
+                       .translate((x0, y0, z)))
+                body = body.cut(cyl)
 
     # --- fillets (vertical edges only, v1) ----------------------------------
     fillets_applied = False
@@ -428,6 +483,9 @@ def _vertical_edges(body: cq.Workplane, p: NodeParams,
             return False
         if any(abs(a[0] - tx) < 1.0 and abs(a[1] - ty) < 1.0
                for (tx, ty) in tips):
+            return False
+        # mating-plane edges must stay sharp (flat face mates flat face)
+        if p.spine_split and abs((a[0] + a[1]) - (cx + cy)) < 0.8:
             return False
         if exclude_cylinders:
             r = math.hypot(a[0] - cx, a[1] - cy)

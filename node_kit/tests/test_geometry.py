@@ -179,6 +179,35 @@ def test_parametric_variants_build(kwargs):
     assert result.volume_mm3 > 0
 
 
+def test_spine_split_variant():
+    """Architecture E half: valid single solid, nothing beyond the flat
+    mating plane, spine bolt holes present."""
+    import cadquery as cq
+    from node_kit.geometry import _spine_frame, spine_bolt_positions
+
+    p = NodeParams(spine_split=True, boss_diameter=64.0,
+                   bracket_bolt_pattern=((-30.0, 45.0), (30.0, 45.0),
+                                         (-30.0, 155.0), (30.0, 155.0)))
+    b = build_node(p, with_fillets=False)
+    assert b.solid.val().isValid()
+    assert len(b.solid.solids().vals()) == 1
+    assert len(spine_bolt_positions(p)) == 2 * p.spine_bolt_rows
+
+    (sx, sy), n, d = _spine_frame(p)
+    probe = (cq.Workplane("XY").box(300, 800, 700)
+             .rotate((0, 0, 0), (0, 0, 1), 45)
+             .translate((sx + n[0] * 150.05, sy + n[1] * 150.05, 100)))
+    ov = b.solid.intersect(probe)
+    vol = sum(s.Volume() for s in ov.solids().vals()) if ov.solids().vals() else 0
+    assert vol < 1.0, "material found beyond the mating plane"
+
+    no_holes = build_node(p, with_fillets=False, with_holes="cast_only")
+    assert no_holes.volume_mm3 > b.volume_mm3  # spine+bolt holes cut metal
+
+    with pytest.raises(ValueError, match="strip"):
+        NodeParams(spine_split=True, boss_diameter=52.0)  # strip too narrow
+
+
 def test_exports(tmp_path, default_build):
     step = export_step(default_build, str(tmp_path / "n.step"))
     stl = export_stl(default_build, str(tmp_path / "n.stl"))

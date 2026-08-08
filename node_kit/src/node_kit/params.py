@@ -168,6 +168,16 @@ class NodeParams:
     )
     bracket_bolt_diameter: float = 16.0  # mm
 
+    # ---- pinwheel spine (owner architecture E: two halves bolted
+    # back-to-back at a flat diagonal mating plane through the rod axis;
+    # the pair completes the rod boss like a split bearing). Spine bolts
+    # sit INSIDE the boss flat, in the strips beside the rod groove
+    # (spot-faced seats) - flange ears were rejected by the undercut
+    # screen (they overhang the legs and trap mold). ----
+    spine_split: bool = False          # False = full-boss solo L (corner use)
+    spine_bolt_diameter: float = 12.0
+    spine_bolt_rows: int = 3
+
     # ---- assembly ----
     fit_clearance: float = 0.25       # node-to-post sliding fit, per side, mm
     base_plate_thickness: float = 0.0  # cast floor under the post footprint,
@@ -206,6 +216,19 @@ class NodeParams:
                 raise ValueError(f"{name} must be >= 0, got {getattr(self, name)}")
         if self.rib_count < 0:
             raise ValueError("rib_count must be >= 0")
+        if self.spine_split:
+            if self.spine_bolt_diameter <= 0:
+                raise ValueError("spine_bolt_diameter must be > 0")
+            if self.spine_bolt_rows < 2:
+                raise ValueError("spine_bolt_rows must be >= 2 (joint moment)")
+            strip = (self.boss_diameter - self.rod_hole_diameter) / 2
+            if strip < 1.6 * self.spine_bolt_diameter:
+                raise ValueError(
+                    f"boss flat strip {strip:.1f} mm too narrow for spine "
+                    f"bolts d={self.spine_bolt_diameter} (need >= "
+                    f"{1.6 * self.spine_bolt_diameter:.1f}); enlarge "
+                    "boss_diameter"
+                )
         if self.bolt_rows < 1 or self.bolts_per_row < 1:
             raise ValueError("need at least one bolt row and one bolt per row")
 

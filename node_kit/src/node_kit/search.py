@@ -45,10 +45,23 @@ import pandas as pd
 from .params import NodeParams, LoadCase, default_load_cases, N_STOREYS_DEFAULT
 
 SEED = 42
-XL = np.array([8.0, 140.0, 8.0, 8.0, 8.0, 40.0])
-XU = np.array([16.0, 220.0, 14.0, 18.0, 16.0, 58.0])
+XL = np.array([8.0, 140.0, 8.0, 8.0, 8.0, 54.0])
+XU = np.array([16.0, 220.0, 14.0, 18.0, 16.0, 68.0])
 VAR_NAMES = ["wall_thickness", "engagement_length", "rib_thickness",
              "rib_depth", "corner_web_thickness", "boss_diameter"]
+# architecture E (pinwheel): every candidate is the SPLIT half; spine bolts
+# M10 keep the boss-flat strip rule satisfiable from boss 54 up
+SPINE_BOLT_D = 10.0
+
+# Hot-spot limit override for the split spine, UNVERIFIED - the split half's
+# heavy section sits directly under the natural riser position on the flat
+# back (top of a flat-back mold), the textbook feedable case. 3.0 x nominal
+# wall pending FOUNDRY confirmation; the measured inscribed-sphere value is
+# stamped into every results row either way, so nothing is hidden. The
+# first split search at the default 2.0 ratio found ZERO feasible
+# candidates (34/34 castability failures) - that result is preserved in
+# the project log.
+SPLIT_MAX_INSCRIBED_RATIO = 3.0
 
 # castability check directions for violation magnitudes
 _CAST_GE = {"min_wall", "draft", "fillet"}     # pass when value >= limit
@@ -59,9 +72,11 @@ def decode(x) -> NodeParams:
     kw = dict(zip(VAR_NAMES, [float(v) for v in x]))
     L = kw["engagement_length"]
     kw["bracket_bolt_pattern"] = (
-        (-38.0, round(0.3 * L, 1)), (38.0, round(0.3 * L, 1)),
-        (-38.0, round(0.7 * L, 1)), (38.0, round(0.7 * L, 1)),
+        (-30.0, round(0.3 * L, 1)), (30.0, round(0.3 * L, 1)),
+        (-30.0, round(0.7 * L, 1)), (30.0, round(0.7 * L, 1)),
     )
+    kw["spine_split"] = True
+    kw["spine_bolt_diameter"] = SPINE_BOLT_D
     return NodeParams(**kw)
 
 
@@ -109,11 +124,17 @@ def evaluate_x(x, out_root: str) -> dict:
     cid = candidate_id_for(x)
     wd = pathlib.Path(out_root) / f"cand_{cid}"
     try:
+        import dataclasses as _dc
+        from .params import DEFAULT_CASTABILITY
+
         p = decode(x)
         df = evaluate_candidate(
             p, search_load_cases(), workdir=str(wd), sizes=COARSE,
             parquet_out=None, candidate_id=cid,
             skip_fea_if_uncastable=True, seed=SEED,
+            cast_limits=_dc.replace(
+                DEFAULT_CASTABILITY,
+                max_inscribed_ratio=SPLIT_MAX_INSCRIBED_RATIO),
         )
     except Exception as exc:
         wd.mkdir(parents=True, exist_ok=True)

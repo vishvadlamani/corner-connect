@@ -501,6 +501,7 @@ def evaluate_candidate(
     parquet_out: str | None = "runs/results.parquet",
     candidate_id: str = "default",
     skip_fea_if_uncastable: bool = False,
+    cast_limits=None,
 ) -> pd.DataFrame:
     """Full evaluation of one candidate. Returns the contract DataFrame
     (one row per load case) and optionally writes it to Parquet.
@@ -524,11 +525,13 @@ def evaluate_candidate(
     cast_tet = step_to_tet_mesh(step_cast, sizes.cast_tet_min,
                                 sizes.cast_tet_max)
     build_machined = build_node(p)
+    from .params import DEFAULT_CASTABILITY
     castab = cast.run_castability(
         p, build_machined.fillets_applied, build_machined.fillet_radius_used,
         as_cast_stl_points=m.points,
         as_cast_stl_triangles=m.cells_dict["triangle"],
         as_cast_tet_mesh=cast_tet,
+        limits=cast_limits or DEFAULT_CASTABILITY,
     )
     cast_cols = {}
     for c in castab["checks"]:

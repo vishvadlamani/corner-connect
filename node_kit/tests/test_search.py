@@ -13,6 +13,8 @@ def test_decode_midpoint_is_valid():
     x = (S.XL + S.XU) / 2
     p = S.decode(x)
     assert p.wall_thickness == pytest.approx(12.0)
+    assert p.spine_split is True          # architecture E baked in
+    assert p.spine_bolt_diameter == S.SPINE_BOLT_D
     # bracket pattern scaled with engagement
     zs = sorted({z for (_, z) in p.bracket_bolt_pattern})
     L = p.engagement_length
