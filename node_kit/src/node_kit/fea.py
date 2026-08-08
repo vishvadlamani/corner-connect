@@ -50,7 +50,10 @@ class MaterialDef:
 class Section:
     elset: str
     material: str
-    thickness: float | None = None   # plane-stress thickness, None for 3D
+    thickness: float | None = None   # plane-stress/shell thickness
+    kind: str = "solid"              # "solid" | "shell" | "beam_circ"
+    beam_radius: float | None = None
+    beam_n1: tuple = (0.0, 0.0, 1.0)  # beam cross-section direction vector
 
 
 @dataclass
@@ -63,10 +66,13 @@ class Step:
     boundaries: list[tuple] = field(default_factory=list)
     # (target nset-or-node-id, dof, value)
     cloads: list[tuple] = field(default_factory=list)
+    # (element id 1-based, face id 1..6, pressure MPa) - positive = onto face
+    dloads: list[tuple] = field(default_factory=list)
     # (nset, keys e.g. "RF", totals_only)
     node_prints: list[tuple] = field(default_factory=list)
     node_file: str = "U"             # frd nodal output request
     el_file: str = "S"               # frd element output request
+    output_2d: bool = False          # map beam/shell results to original nodes
 
 
 @dataclass
@@ -86,6 +92,10 @@ class Deck:
     interactions: list[tuple[str, float]] = field(default_factory=list)
     # (interaction name, slave surface, master surface)
     contact_pairs: list[tuple[str, str, str]] = field(default_factory=list)
+    # distributing couplings: (elset name, element id, ref node id, nset name)
+    dist_couplings: list[tuple[str, int, int, str]] = field(default_factory=list)
+    # SPRING2 elements: (elset, dof1, dof2, stiffness, elem id, node1, node2)
+    springs: list[tuple] = field(default_factory=list)
     # global amplitude-independent boundaries applied before all steps
     base_boundaries: list[tuple] = field(default_factory=list)
     steps: list[Step] = field(default_factory=list)
@@ -131,7 +141,8 @@ def write_inp(deck: Deck, path: str) -> str:
     for name, faces in deck.surfaces.items():
         ap(f"*SURFACE, NAME={name}, TYPE=ELEMENT")
         for (elem_id, face_id) in faces:
-            ap(f"{elem_id}, S{face_id}")
+            key = face_id if isinstance(face_id, str) else f"S{face_id}"
+            ap(f"{elem_id}, {key}")
 
     for mat in deck.materials:
         ap(f"*MATERIAL, NAME={mat.name}")
@@ -143,9 +154,31 @@ def write_inp(deck: Deck, path: str) -> str:
                 ap(f"{sig:.6g}, {eps:.6g}")
 
     for sec in deck.sections:
-        ap(f"*SOLID SECTION, ELSET={sec.elset}, MATERIAL={sec.material}")
-        if sec.thickness is not None:
+        if sec.kind == "shell":
+            ap(f"*SHELL SECTION, ELSET={sec.elset}, MATERIAL={sec.material}")
             ap(f"{sec.thickness}")
+        elif sec.kind == "beam_circ":
+            ap(f"*BEAM SECTION, ELSET={sec.elset}, MATERIAL={sec.material}, "
+               "SECTION=CIRC")
+            ap(f"{sec.beam_radius}")
+            ap(f"{sec.beam_n1[0]}, {sec.beam_n1[1]}, {sec.beam_n1[2]}")
+        else:
+            ap(f"*SOLID SECTION, ELSET={sec.elset}, MATERIAL={sec.material}")
+            if sec.thickness is not None:
+                ap(f"{sec.thickness}")
+
+    for (elset, elem_id, ref_id, nset) in deck.dist_couplings:
+        ap(f"*ELEMENT, TYPE=DCOUP3D, ELSET={elset}")
+        ap(f"{elem_id}, {ref_id}")
+        ap(f"*DISTRIBUTING COUPLING, ELSET={elset}")
+        ap(f"{nset}, 1.")
+
+    for (elset, dof1, dof2, k, eid, n1, n2) in deck.springs:
+        ap(f"*ELEMENT, TYPE=SPRING2, ELSET={elset}")
+        ap(f"{eid}, {n1}, {n2}")
+        ap(f"*SPRING, ELSET={elset}")
+        ap(f"{dof1}, {dof2}")
+        ap(f"{k:.6g}")
 
     for (nset, ref, rot) in deck.rigid_bodies:
         ap(f"*RIGID BODY, NSET={nset}, REF NODE={ref}, ROT NODE={rot}")
@@ -178,12 +211,17 @@ def write_inp(deck: Deck, path: str) -> str:
             ap("*CLOAD")
             for (target, dof, val) in st.cloads:
                 ap(f"{target}, {dof}, {val:.9g}")
+        if st.dloads:
+            ap("*DLOAD")
+            for (elem_id, face_id, pressure) in st.dloads:
+                ap(f"{elem_id}, P{face_id}, {pressure:.9g}")
         for (nset, keys, totals) in st.node_prints:
             tot = ", TOTALS=ONLY" if totals else ""
             ap(f"*NODE PRINT, NSET={nset}{tot}")
             ap(keys)
+        out2d = ", OUTPUT=2D" if st.output_2d else ""
         if st.node_file:
-            ap("*NODE FILE")
+            ap(f"*NODE FILE{out2d}")
             ap(st.node_file)
         if st.el_file:
             ap("*EL FILE")
@@ -201,10 +239,14 @@ class CcxError(RuntimeError):
     pass
 
 
-def run_ccx(workdir: str, jobname: str, timeout_s: int = 3600) -> dict:
+def run_ccx(workdir: str, jobname: str, timeout_s: int = 3600,
+            nthreads: int | None = None) -> dict:
     """Run ccx on workdir/jobname.inp; return paths to result files."""
     env = dict(os.environ)
-    env.setdefault("OMP_NUM_THREADS", str(os.cpu_count() or 1))
+    if nthreads is not None:
+        env["OMP_NUM_THREADS"] = str(nthreads)
+    else:
+        env.setdefault("OMP_NUM_THREADS", str(os.cpu_count() or 1))
     proc = subprocess.run(
         ["ccx", "-i", jobname],
         cwd=workdir, env=env, capture_output=True, text=True,

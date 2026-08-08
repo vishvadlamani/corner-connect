@@ -168,6 +168,9 @@ class NodeParams:
     )
     bracket_bolt_diameter: float = 16.0  # mm
 
+    # ---- assembly ----
+    fit_clearance: float = 0.25       # node-to-post sliding fit, per side, mm
+
     # ---- casting / manufacturing ----
     fillet_radius: float = 8.0        # mm
     draft_angle: float = 2.0          # degrees, applied at pattern stage

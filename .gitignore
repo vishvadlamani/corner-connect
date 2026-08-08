@@ -8,6 +8,7 @@ dist/
 # per-candidate FEA/optimisation artifacts — regenerable, potentially large
 node_kit/runs/*
 !node_kit/runs/.gitkeep
+runs/
 
 # solver scratch files
 *.frd

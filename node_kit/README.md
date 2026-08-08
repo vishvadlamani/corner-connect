@@ -165,6 +165,37 @@ continuous through the rod hole. Consequences, encoded in
 | 4 | Gate 1: tip load applied as equal nodal split; fully clamped root face | Total force exact; Saint-Venant artifacts local; at L/h = 20 shear (+~0.2 %) and clamp restraint (−~0.2 %) are inside the 2 % gate |
 | 5 | Gate 2: quarter-symmetric finite plate, d/W = 0.05 | Howland finite-width correction ~1 %, inside the 5 % gate |
 | 6 | Gate 3: rigid pin, all rotations fixed (no tilting), frictionless linear-penalty contact, bilinear hardening (Fy→Fu at 10 % strain) | Compares against washered/double-shear m_f values where tilting is suppressed; acceptance is a bounded band (code value below FEA ultimate, FEA below 1.15× the most generous code configuration) because no exact closed form exists — band FLAGGED for engineer review |
+| 7 | Assembly (M6): post shell UNPERFORATED at design thickness | Post-side hole bearing capacity is carried by the AISI checks; the shell's job is global wall bending/tilting flexibility |
+| 8 | Assembly: bolts = rigid casting-rim + distributing coupling on the shell + 3 SPRING2 (axial EA/L, shear 12EI/L³) | Load-distribution fidelity, not local stress; bolt forces recovered exactly as k·Δ; rigid rim slightly stiffens the casting hole locally |
+| 9 | Assembly: frictionless contact with fit_clearance = 0.25 mm/side sliding gap | Matches a real plug-together kit fit; contact engages only where prying closes the gap; also removes zero-gap chatter (5× solver speedup) |
+| 10 | Assembly: linear kinematics, contact iterations only | Screening-level; final candidate gets a nonlinear review pass |
+| 11 | LC1 applied as collar-annulus bearing (Architecture B stack path) | Worst case for the casting; under Architecture A it vanishes into post continuity |
+| 12 | LC3/LC4 magnitudes applied as VERTICAL (−z) forces at the face-A/face-B bracket rims | They are floor-beam END REACTIONS (gravity shear); the load-case "x/y" labels the beam's span direction, not the force direction |
+| 13 | Casting/post utilization = peak nodal von Mises vs Fy | Peak sits at coupling/re-entrant regions and is mesh-sensitive; conservative screening indicator, engineer reviews the field, not just the peak |
+
+## Candidate evaluation (Milestone 6)
+
+```bash
+python -m node_kit.cli evaluate            # default candidate, 5 storeys
+python -m node_kit.cli evaluate --coarse   # fast screening meshes
+```
+
+One Parquet row per (candidate, load case) in `runs/results.parquet`,
+carrying the full contract: every NodeParams field, load case id and
+magnitudes, casting mass, casting/post peak von Mises, joint stiffness,
+every AISI ratio by name, every castability check (pass/value/limit),
+per-LC and candidate pass flags, governing limit state, per-bolt forces
+(JSON), solve wall-clock, git SHA, timestamp, RNG seed, design method and
+the factors_unverified stamp. The five load cases run as parallel ccx
+processes (wall clock ~ the slowest case).
+
+Mass anatomy of the default node (why a casting outweighs folded sheet):
+the two leg plates are 6.1 kg of the 9.5 kg total (64 %); the boss adds
+~2.9 kg net. The same legs in 4 mm folded sheet would be 2.0 kg — the
+casting pays a min-wall tax (~8 mm castable floor vs 4–5 mm sheet) and
+buys back the integrated rod boss, no welds, and machined datums. An
+aggressive-but-castable parameter set (8 mm wall, 160 mm engagement,
+slimmer boss/ribs) builds at 5.2 kg — the optimiser's hunting ground.
 
 ## Validation gates (Milestone 3) — results
 

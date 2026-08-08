@@ -137,6 +137,50 @@ def lap_coupon_mesh(sheet_w: float, sheet_len: float, sheet_t: float,
         return _to_meshio()
 
 
+def post_shell_mesh(mid_size: float, z0: float, z1: float,
+                    elem_size: float) -> meshio.Mesh:
+    """CFS box post as a shell MIDSURFACE mesh: the 4 lateral walls of a
+    square prism (side = mid_size = post outer size - design thickness),
+    centred on the origin, from z0 to z1. Quadratic triangles -> ccx S6
+    shells; ccx expands them by the real thickness given on the
+    *SHELL SECTION card, so contact acts at the true outer surface.
+    """
+    with _gmsh_session():
+        gmsh.model.add("post_shell")
+        occ = gmsh.model.occ
+        h = mid_size / 2
+        box = occ.addBox(-h, -h, z0, 2 * h, 2 * h, z1 - z0)
+        occ.synchronize()
+        vol = [(3, box)]
+        # drop the volume and the two horizontal caps, keep 4 lateral walls
+        caps = []
+        for (dim, tag) in gmsh.model.getEntities(2):
+            _, _, zmin, _, _, zmax = gmsh.model.getBoundingBox(dim, tag)
+            if abs(zmax - zmin) < 1e-6:
+                caps.append((dim, tag))
+        gmsh.model.occ.remove(vol)
+        gmsh.model.occ.remove(caps)
+        occ.synchronize()
+        gmsh.option.setNumber("Mesh.MeshSizeMin", elem_size)
+        gmsh.option.setNumber("Mesh.MeshSizeMax", elem_size)
+        gmsh.model.mesh.generate(2)
+        return _to_meshio()
+
+
+def surface_cells(mesh: meshio.Mesh, cell_type: str = "triangle6") -> np.ndarray:
+    blocks = [b.data for b in mesh.cells if b.type == cell_type]
+    if not blocks:
+        raise ValueError(f"mesh has no {cell_type} cells")
+    return np.vstack(blocks)
+
+
+def shell_normals(points: np.ndarray, cells: np.ndarray) -> np.ndarray:
+    """Unit normal per shell element (from the first three nodes)."""
+    a, b, c = points[cells[:, 0]], points[cells[:, 1]], points[cells[:, 2]]
+    n = np.cross(b - a, c - a)
+    return n / (np.linalg.norm(n, axis=1, keepdims=True) + 1e-30)
+
+
 def step_to_tet_mesh(step_path: str, size_min: float,
                      size_max: float) -> meshio.Mesh:
     """Generic STEP -> quadratic tet mesh (used for the node casting)."""

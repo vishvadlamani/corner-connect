@@ -234,15 +234,23 @@ def _corner_wedges(cx: float, cy: float, face: float, radius: float,
 
 
 def build_node(p: NodeParams, with_fillets: bool = True,
-               with_holes: bool = True) -> BuildResult:
+               with_holes: bool | str = True) -> BuildResult:
     """Build the node solid. Deterministic for identical params.
 
-    with_holes=False suppresses every hole (rod, post bolts, brackets) and
-    yields the as-cast form used by the castability moldability/hot-spot
-    screens and (with shrink/allowance) the foundry pattern: holes are cast
-    blind/undersize or drilled, so they must not count as mold features.
+    with_holes selects which holes exist in the solid:
+      True  / "all"       - every hole (as-machined part)
+      False / "none"      - no holes (mold-form: for the undercut screen,
+                            where every hole is a core or a drill, not a
+                            mold feature)
+      "cast_only"         - only the CORED rod through-hole (for the
+                            hot-spot screen and the foundry pattern: the
+                            rod hole is cast in, small bolt holes are
+                            drilled from solid)
     """
     validate_hole_layout(p)
+    hole_mode = {True: "all", False: "none"}.get(with_holes, with_holes)
+    if hole_mode not in ("all", "none", "cast_only"):
+        raise ValueError(f"bad with_holes {with_holes!r}")
 
     half = p.post_size / 2
     t = p.wall_thickness
@@ -292,8 +300,9 @@ def build_node(p: NodeParams, with_fillets: bool = True,
     body = body.cut(post_prism)
 
     # --- holes --------------------------------------------------------------
-    if with_holes:
-        body = _cut_holes(body, p, half, t, L, bh, cx, cy)
+    if hole_mode != "none":
+        body = _cut_holes(body, p, half, t, L, bh, cx, cy,
+                          drilled=(hole_mode == "all"))
 
     # --- fillets (vertical edges only, v1) ----------------------------------
     fillets_applied = False
@@ -315,9 +324,12 @@ def build_node(p: NodeParams, with_fillets: bool = True,
     )
 
 
-def _cut_holes(body, p: NodeParams, half, t, L, bh, cx, cy):
+def _cut_holes(body, p: NodeParams, half, t, L, bh, cx, cy,
+               drilled: bool = True):
     body = body.cut(_cyl_z(cx, cy, p.rod_hole_diameter / 2,
                            -bh - L, 2 * L + bh))
+    if not drilled:
+        return body
 
     reach = t + p.rib_depth + 1.0  # 1 mm overshoot purely for robust booleans
 
@@ -364,6 +376,22 @@ def _vertical_edges(body: cq.Workplane, p: NodeParams,
     rod_r = p.rod_hole_diameter / 2
     tol = 1e-6
 
+    # excluded degenerate wedge edges: feather tips (45-degree acute, cannot
+    # take the design radius) and tangency lines (zero-dihedral smooth
+    # junctions where the wedge hypotenuse meets the boss/ring cylinder -
+    # OCCT cannot fillet those)
+    tips = []
+    s2 = math.sqrt(2.0)
+    for face, radius in ([(half + p.wall_thickness, boss_r)] +
+                         ([(half + p.wall_thickness + p.rib_depth,
+                            boss_r + p.rib_depth)] if p.rib_count else [])):
+        x0 = max(face - radius * s2, -half)
+        rt = radius / s2
+        tips.append((x0, face))
+        tips.append((face, x0))
+        tips.append((cx - rt, cy + rt))   # tangency, leg-B side
+        tips.append((cy + rt, cx - rt))   # tangency, leg-A side
+
     def selectable(edge) -> bool:
         try:
             v0, v1 = edge.Vertices()
@@ -375,6 +403,9 @@ def _vertical_edges(body: cq.Workplane, p: NodeParams,
         if abs(a[2] - b[2]) < tol:
             return False
         if abs(a[0] - half) < 1e-3 and abs(a[1] - half) < 1e-3:
+            return False
+        if any(abs(a[0] - tx) < 1.0 and abs(a[1] - ty) < 1.0
+               for (tx, ty) in tips):
             return False
         if exclude_cylinders:
             r = math.hypot(a[0] - cx, a[1] - cy)
@@ -391,34 +422,58 @@ def _try_fillets(body: cq.Workplane, p: NodeParams):
     Returns (body, applied, radius_used, warnings).
     """
     warnings: list[str] = []
-    stages = [
-        (p.fillet_radius, False),      # everything incl. boss junctions
-        (p.fillet_radius, True),       # planar feature edges only
-        (p.fillet_radius / 2, True),   # smaller radius, planar edges only
-    ]
-    for radius, exclude_cyl in stages:
+    radius = p.fillet_radius
+
+    # pass 1: all candidate edges at once (incl. boss junction edges)
+    for exclude_cyl in (False, True):
         edges = _vertical_edges(body, p, exclude_cylinders=exclude_cyl)
         if not edges:
-            break
+            continue
         try:
             filleted = body.newObject(edges).fillet(radius)
             if not filleted.val().isValid():
                 raise ValueError("fillet produced an invalid solid")
             if exclude_cyl:
-                warnings.append(
-                    "boss-junction fillets skipped (cylinder-edge fillet "
-                    "failed); junctions are sharp in this build"
-                )
-            if radius != p.fillet_radius:
-                warnings.append(
-                    f"fillet radius reduced to {radius:.1f} mm to succeed"
-                )
+                warnings.append("boss-junction fillets skipped; sharp there")
             return filleted, True, radius, warnings
-        except Exception as exc:  # OCCT fillet failures are opaque
+        except Exception as exc:
             warnings.append(
-                f"fillet pass (r={radius:.1f}, exclude_cyl={exclude_cyl}) "
-                f"failed: {type(exc).__name__}"
+                f"combined fillet (exclude_cyl={exclude_cyl}) failed: "
+                f"{type(exc).__name__}"
             )
+
+    # pass 2: sequential, one edge at a time at full radius; individual
+    # failures are skipped (combined OCCT fillets fail on interactions the
+    # one-at-a-time route avoids)
+    done = 0
+    skipped: list[tuple[float, float]] = []
+    for _ in range(64):
+        candidates = [
+            e for e in _vertical_edges(body, p, exclude_cylinders=True)
+            if not any(
+                abs(e.Vertices()[0].toTuple()[0] - sx) < 1e-3
+                and abs(e.Vertices()[0].toTuple()[1] - sy) < 1e-3
+                for (sx, sy) in skipped)
+        ]
+        if not candidates:
+            break
+        edge = candidates[0]
+        v = edge.Vertices()[0].toTuple()
+        try:
+            attempt = body.newObject([edge]).fillet(radius)
+            if not attempt.val().isValid():
+                raise ValueError("invalid solid")
+            body = attempt
+            done += 1
+        except Exception:
+            skipped.append((v[0], v[1]))
+    if skipped:
+        warnings.append(
+            f"{len(skipped)} edge(s) left sharp (per-edge fillet failed)")
+    if done:
+        warnings.append(f"fillets applied sequentially ({done} edges)")
+        return body, True, radius, warnings
+
     warnings.append("geometry built WITHOUT fillets; castability will flag")
     return body, False, 0.0, warnings
 
