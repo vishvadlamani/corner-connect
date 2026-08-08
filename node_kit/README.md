@@ -293,6 +293,24 @@ DECIDING QUESTION FOR THE OWNER: does each panel bring its own post
 downstream (which faces get machined, where the rod sits, bolt double-
 sheet behaviour) follows from this.
 
+INDUSTRY PRECEDENT (researched 2026-08, sources in project log):
+* Panelized load-bearing LGSF practice: panels ship with their own
+  boundary studs; heavy verticals are BUILT-UP members (back-to-back /
+  boxed stud pairs screwed together) and panel end studs double up at
+  panel joints - i.e. member-per-panel + fasten-into-cluster is the
+  LGSF norm (SSMA/CEMCO typical details, CFSEI jamb research).
+* Volumetric modular practice: every module carries its own corner
+  posts; 2-4 posts cluster at interfaces and are tied by inter-module
+  connections - an entire research field documents these clusters.
+* Skeletal (hot-rolled) practice: ONE shared column per grid point,
+  beams frame in - the material-lean pattern for open plans.
+Conclusion: a panelized product points to post-per-panel clusters
+(pinwheel E); the shared-post wrap is the skeletal-frame pattern and
+saves steel but breaks panel self-containment. TRADE-OFF to weigh:
+interior 4-post clusters occupy a fat plan footprint (4 posts + party
+gaps); per-panel posts can shrink (each carries ~1/4 the tributary) to
+soften this - a post-sizing pass belongs to the building-level design.
+
 Also noted from the competitor image (owner's blue highlight): their unit
 has a BOTTOM PLATE/foot - the post-end bearing seat this repo already
 implements as `base_plate_thickness` (per-pocket seats in a pinwheel).
