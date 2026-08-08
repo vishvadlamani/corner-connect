@@ -271,6 +271,32 @@ post faces. Analysis:
   compression sleeves at torque-up; per-joint mass when paired is 2× one
   half (optimiser drives the half down).
 
+### E — BACK-TO-BACK L / PINWHEEL (owner sketch, red "+", 2026-08): the
+second L rotated 180° about the SPINE (rod-boss axis), not about the post.
+Changes the whole relationship: POSTS SIT IN THE POCKETS AROUND THE
+CONNECTOR (post-per-panel system - 2 posts meet at party lines, 4 at
+interior corners) and the tie rod runs dead-centre of the post cluster,
+protected in the party-line void. Same single casting SKU: solo L at
+building corners, back-to-back pair at edges/interiors.
+
+Geometry v3 work items before this is buildable (not yet implemented):
+  * flat spine MATING FACE with a spine bolt pattern (current spine is the
+    round boss - two rotated copies would clash);
+  * SPLIT BOSS: each casting carries a half-cylinder; the bolted pair
+    completes the rod boss (split-bearing detail);
+  * top/bottom symmetry audit so one SKU also serves as its own mirror
+    (bolt rows and brackets are already z-symmetric).
+
+DECIDING QUESTION FOR THE OWNER: does each panel bring its own post
+(clusters -> pinwheel E is the natural fit) or do panels share grid posts
+(single post per grid point -> wrap architectures A/B/D)? Everything
+downstream (which faces get machined, where the rod sits, bolt double-
+sheet behaviour) follows from this.
+
+Also noted from the competitor image (owner's blue highlight): their unit
+has a BOTTOM PLATE/foot - the post-end bearing seat this repo already
+implements as `base_plate_thickness` (per-pocket seats in a pinwheel).
+
 RECOMMENDATION (pipeline author): adopt D as the product architecture —
 single-L clamp (A) and twin-L collar are the same casting, so Milestone 7
 optimises ONE part that serves both; keep the floor plate (B) as a
