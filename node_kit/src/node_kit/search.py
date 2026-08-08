@@ -131,28 +131,36 @@ def evaluate_x(x, out_root: str) -> dict:
     return {"F": [mass, ratio], "G": [ratio - 1.0 + g_spacing, g_cast]}
 
 
+from pymoo.core.problem import ElementwiseProblem
+
+
+class NodeProblem(ElementwiseProblem):
+    """Module-level so multiprocessing can pickle it."""
+
+    def __init__(self, out_root: str = "runs/search", **kwargs):
+        self.out_root = out_root
+        super().__init__(n_var=len(XL), n_obj=2, n_ieq_constr=2,
+                         xl=XL, xu=XU, **kwargs)
+
+    def _evaluate(self, x, out_dict, *args, **kwargs):
+        res = evaluate_x(x, self.out_root)
+        out_dict["F"] = res["F"]
+        out_dict["G"] = res["G"]
+
+
 def run_search(pop: int = 10, gen: int = 6, out: str = "runs",
                n_proc: int = 2, seed: int = SEED) -> pd.DataFrame:
     from multiprocessing import Pool
     from pymoo.algorithms.moo.nsga2 import NSGA2
-    from pymoo.core.problem import ElementwiseProblem, StarmapParallelization
+    from pymoo.core.problem import StarmapParallelization
     from pymoo.optimize import minimize
 
     out_root = str(pathlib.Path(out) / "search")
     pathlib.Path(out_root).mkdir(parents=True, exist_ok=True)
 
-    class NodeProblem(ElementwiseProblem):
-        def __init__(self, **kwargs):
-            super().__init__(n_var=len(XL), n_obj=2, n_ieq_constr=2,
-                             xl=XL, xu=XU, **kwargs)
-
-        def _evaluate(self, x, out_dict, *args, **kwargs):
-            res = evaluate_x(x, out_root)
-            out_dict["F"] = res["F"]
-            out_dict["G"] = res["G"]
-
     with Pool(n_proc) as pool:
         problem = NodeProblem(
+            out_root=out_root,
             elementwise_runner=StarmapParallelization(pool.starmap))
         algo = NSGA2(pop_size=pop)
         res = minimize(problem, algo, ("n_gen", gen), seed=seed,
