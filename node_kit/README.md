@@ -194,8 +194,35 @@ Full history in runs/validation/gate3/result.json (regenerate with pytest).
    corner) gets added to geometry.py.
 2. **Bracket detail**: do bracket bolts pass through the post wall (shared
    clamping) or thread into the casting?
-3. **Node-on-node stacking**: confirm the storey-stacking bearing assumption
-   in "Multi-storey load path" above.
+3. **Joint architecture — the single highest-leverage open decision.**
+   The post column carries the accumulated gravity along its length in ANY
+   architecture; the question is only how that force crosses each storey
+   joint plane. Two coherent options, both keeping accumulated gravity out
+   of the bolt group (precedent: AISC bearing-type column splices, ISO
+   container corner castings, modular corner-fitting systems):
+
+   * **A — "clamp" (competitor-style)**: post continuous over multiple
+     storeys, nodes clamp onto it at floor levels, tie rods run OUTSIDE the
+     post. Accumulated gravity crosses the joint by post continuity - no
+     transfer at all. Bolts carry only per-storey beam reactions. Current
+     node geometry (open sleeve) already suits this. Splices, where the
+     post length runs out, must be bearing-type.
+   * **B — "stack"**: storey-segment posts; accumulated gravity crosses the
+     joint by DIRECT BEARING (post end -> node seat -> node/post below).
+     Requires a bearing seat the current geometry does NOT have (internal
+     ledge or cap diaphragm - parametric feature to add, cored pattern).
+     Better per-storey demountability; machined bearing surfaces.
+
+   Anti-pattern to avoid (pallet-racking style): per-storey gravity via
+   tabs/fasteners bearing in thin walls is workable (racking does it) but
+   costs joint looseness and mandatory stiffness testing (EN 15512); for a
+   stacked building system the accumulated load must never do this.
+
+4. **Post member check is outside this pipeline's scope**: the ground-storey
+   post carries n_storeys x per-storey gravity as a COLUMN (AISI Chapter E
+   member design: local buckling of the thin wall governs well below gross
+   yield). This pipeline checks the CONNECTION; the post member check must
+   be run at building level and may set the real height ceiling.
 
 ## Repo layout
 
