@@ -97,23 +97,78 @@ are read.
    it cannot clash; bearing at the corner is therefore slightly conservative
    in FEA.
 
+## Multi-storey load path (added after owner confirmed >= 5 storeys)
+
+ASSUMPTION (critical, engineer to confirm): storeys stack
+node-bearing-on-node through the machined top/bottom faces, with the tie rod
+continuous through the rod hole. Consequences, encoded in
+`params.default_load_cases(n_storeys=...)`:
+
+* Accumulated gravity compression passes casting-to-casting and NEVER
+  through the thin CFS post wall. Accumulated uplift passes through the rod.
+* The post-wall bolt group sees only the node's own-storey beam reactions
+  (LC3/LC4 magnitudes do not scale with storey count).
+* Storey accumulation is modelled linearly as a placeholder; real
+  accumulation needs the building's load takedown from the owner.
+* "Oversizing the casting" therefore does NOT raise joint capacity - the
+  post wall and bolt group set it. The levers that do: post gauge, bolt
+  count/diameter/pattern, rod diameter, engagement length, bearing areas.
+
 ## FEA simplifications log
 
-(To be extended at each milestone; every entry needs a justification.)
+(Extended at each milestone; every entry needs a justification.)
 
 | # | Simplification | Justification |
 |---|----------------|---------------|
-| 1 | (Milestone 3 pending) Bolts as beam/spring connectors + node-to-post surface contact, no thread/preload modelling | Bearing/tilting in 1–2.6 mm sheet governs; AISI checks carry the code capacity, FEA carries load distribution + stiffness |
-| 2 | (Milestone 3 pending) Post modelled as shell at design thickness | Captures wall bearing/tilting flexibility that a rigid post would hide |
+| 1 | (Milestone 6) Bolts as beam/spring connectors + node-to-post surface contact, no thread/preload modelling | Bearing/tilting in 1–2.6 mm sheet governs; AISI checks carry the code capacity, FEA carries load distribution + stiffness |
+| 2 | (Milestone 6) Post modelled as shell at design thickness | Captures wall bearing/tilting flexibility that a rigid post would hide |
 | 3 | Linear elastic material for screening runs | Optimisation ranks candidates; final candidate gets a review pass by the sealing engineer |
+| 4 | Gate 1: tip load applied as equal nodal split; fully clamped root face | Total force exact; Saint-Venant artifacts local; at L/h = 20 shear (+~0.2 %) and clamp restraint (−~0.2 %) are inside the 2 % gate |
+| 5 | Gate 2: quarter-symmetric finite plate, d/W = 0.05 | Howland finite-width correction ~1 %, inside the 5 % gate |
+| 6 | Gate 3: rigid pin, all rotations fixed (no tilting), frictionless linear-penalty contact, bilinear hardening (Fy→Fu at 10 % strain) | Compares against washered/double-shear m_f values where tilting is suppressed; acceptance is a bounded band (code value below FEA ultimate, FEA below 1.15× the most generous code configuration) because no exact closed form exists — band FLAGGED for engineer review |
+
+## Validation gates (Milestone 3) — results
+
+| Gate | Benchmark | Acceptance | Result |
+|------|-----------|------------|--------|
+| 1 | Cantilever tip deflection vs PL³/3EI | < 2 % | **0.20 %** ✓ |
+| 2 | Plate with hole, Kt = 3.0 | < 5 % | **0.34 %** (Kt 3.010) ✓ |
+| 3 | Single-bolt lap shear vs AISI J3.3.1/J3.3.2 | banded (see log #6) | **PASS** — FEA plateau 56.2 kN = 1.009 × J3.3.1(mf=1.33) 55.7 kN; J3.3.2 nominal 27.9 kN = 0.50 × FEA ultimate (code conservative, as calibrated) ✓ |
+
+Gate 3 detail (97 mil sheet, M12 pin, Fu = 450 MPa placeholder): bearing
+force 47.5 kN at 1.0 mm pin travel, 53.7 kN at 1.5 mm, plateau 56.2 kN.
+Full history in runs/validation/gate3/result.json (regenerate with pytest).
 
 ## UNVERIFIED items for engineer review
 
 - `params.GAUGE_TABLE_MM`: SSMA-standard design thicknesses; the 95%
   delivered-thickness rule is quoted from AISI S100 but the clause number is
   not yet verified against the printed standard (Milestone 4 will resolve).
-- All AISI S100 clause references will be added in Milestone 4; any provision
-  implemented without a worked-example cross-check will be listed here.
+- `checks/aisi_s100.py` (partial, Milestone 3 slice):
+  - Table J3.3.1-1 bearing factor C breakpoints (3.0 / 4−0.1·d/t / 1.8)
+    quoted from memory — confirm against the printed table.
+  - Table J3.3.1-2 m_f rows for no-washer and oversized-hole cases (0.75,
+    1.07) — UNVERIFIED; washered values (1.00, 1.33) high confidence but
+    still to be checked.
+  - Eq. J3.3.2-1 SI conversion coefficient α = 0.0394 — confirm.
+  - φ/Ω values quoted in docstrings (0.60/2.50 for J3.3.1, 0.65/2.22 for
+    J3.3.2) — UNVERIFIED, not yet used in any calculation.
+  - J3.3.2 applicability limits (thickness range, hole type, spacing/edge
+    minimums) not yet enforced — Milestone 4.
+- Gate 3 acceptance band (FEA ≥ J3.3.2 nominal, ≤ 1.15 × J3.3.1 mf=1.33) is
+  engineering judgment, not a code provision — review.
+
+## Open system-level questions for the owner
+
+1. **Bracing scheme**: lateral storey shear must resolve through a bracing
+   system (strap X-bracing, K-braces, or portal action). The node currently
+   has no brace attachment feature. If straps/struts terminate at the node,
+   say so and a parametric brace lug (plate tab or bolt boss on the outer
+   corner) gets added to geometry.py.
+2. **Bracket detail**: do bracket bolts pass through the post wall (shared
+   clamping) or thread into the casting?
+3. **Node-on-node stacking**: confirm the storey-stacking bearing assumption
+   in "Multi-storey load path" above.
 
 ## Repo layout
 

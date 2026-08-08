@@ -122,6 +122,7 @@ class NodeParams:
     rib_thickness: float = 10.0       # horizontal rib plate thickness, mm
     rib_count: int = 2                # number of horizontal ribs (>=2 puts one at top and bottom edge)
     rib_depth: float = 15.0           # rib protrusion beyond leg outer face, mm
+    end_rib_thickness: float = 0.0    # vertical closure rib at each leg free end, mm (0 = none)
     corner_web_thickness: float = 14.0  # corner infill web extent beyond post corner, mm
 
     # ---- node-to-post bolts (through the CFS wall) ----
@@ -170,7 +171,7 @@ class NodeParams:
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be > 0, got {getattr(self, name)}")
         for name in ("boss_height", "draft_angle", "machining_allowance",
-                     "shrink_factor"):
+                     "shrink_factor", "end_rib_thickness"):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must be >= 0, got {getattr(self, name)}")
         if self.rib_count < 0:
@@ -281,19 +282,42 @@ PLACEHOLDER_LC3_SHEAR_X_N = 20_000.0    # 20 kN bracket shear, X
 PLACEHOLDER_LC4_SHEAR_Y_N = 20_000.0    # 20 kN bracket shear, Y
 
 
-def default_load_cases() -> list[LoadCase]:
-    """The five contract load cases, at PLACEHOLDER magnitudes."""
+def default_load_cases(n_storeys: int = 1) -> list[LoadCase]:
+    """The five contract load cases, at PLACEHOLDER magnitudes.
+
+    Multi-storey stacking model (n_storeys = storeys above and including the
+    node's own storey; a 5-storey building's ground-level node has
+    n_storeys=5):
+
+      * Axial compression and rod uplift ACCUMULATE linearly down the stack
+        (placeholder model - real accumulation needs the building's dead/live
+        distribution and net-uplift combinations from the owner).
+      * Beam bracket shears do NOT accumulate: each level's beams carry only
+        that level's floor. Lateral storey shear accumulates in the BRACING
+        system, not in the beam brackets (bracing scheme TBD by owner).
+
+    LOAD PATH ASSUMPTION (critical, engineer to confirm): storeys stack
+    node-bearing-on-node with a continuous tie rod, so accumulated
+    compression passes casting-to-casting through the machined top/bottom
+    faces and accumulated uplift passes through the rod. Neither routes
+    through the thin CFS post wall; the post-wall bolt group sees only the
+    node's own-storey beam reactions. FEA boundary conditions in fea.py
+    apply the stacked loads to the bearing faces / rod hole accordingly.
+    """
+    if n_storeys < 1:
+        raise ValueError("n_storeys must be >= 1")
+    n = float(n_storeys)
     return [
-        LoadCase("LC1", "axial compression down the post (gravity)",
-                 axial_N=PLACEHOLDER_LC1_AXIAL_N),
-        LoadCase("LC2", "tension through the rod hole (uplift)",
-                 rod_tension_N=PLACEHOLDER_LC2_UPLIFT_N),
-        LoadCase("LC3", "beam bracket shear into the node, X",
+        LoadCase("LC1", f"axial compression down the post (gravity, x{n_storeys} storeys)",
+                 axial_N=n * PLACEHOLDER_LC1_AXIAL_N),
+        LoadCase("LC2", f"tension through the rod hole (uplift, x{n_storeys} storeys)",
+                 rod_tension_N=n * PLACEHOLDER_LC2_UPLIFT_N),
+        LoadCase("LC3", "beam bracket shear into the node, X (own storey)",
                  shear_x_N=PLACEHOLDER_LC3_SHEAR_X_N),
-        LoadCase("LC4", "beam bracket shear into the node, Y",
+        LoadCase("LC4", "beam bracket shear into the node, Y (own storey)",
                  shear_y_N=PLACEHOLDER_LC4_SHEAR_Y_N),
         LoadCase("LC5", "combined LC1 + LC3 + LC4",
-                 axial_N=PLACEHOLDER_LC1_AXIAL_N,
+                 axial_N=n * PLACEHOLDER_LC1_AXIAL_N,
                  shear_x_N=PLACEHOLDER_LC3_SHEAR_X_N,
                  shear_y_N=PLACEHOLDER_LC4_SHEAR_Y_N),
     ]

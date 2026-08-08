@@ -118,6 +118,20 @@ def validate_hole_layout(p: NodeParams) -> None:
                     f"bracket hole at z={z} on leg {leg} intersects rib band "
                     f"[{z0}, {z0 + p.rib_thickness}]"
                 )
+    # no face hole may sit behind the vertical end-rib band (fastener heads
+    # and bracket plates need the leg outer face flat there)
+    if p.end_rib_thickness > 0:
+        s_max = -p.post_size / 2 + p.end_rib_thickness
+        holes = [(leg, s, z, p.bolt_diameter / 2)
+                 for (leg, s, z) in post_bolt_positions(p)]
+        holes += [(leg, s, z, p.bracket_bolt_diameter / 2)
+                  for (leg, s, z) in bracket_hole_positions(p)]
+        for (leg, s, z, r) in holes:
+            if s - r < s_max:
+                raise ValueError(
+                    f"hole at s={s} on leg {leg} sits behind the end-rib band "
+                    f"(s < {s_max:.1f})"
+                )
 
 
 def rib_levels(p: NodeParams) -> list[float]:
@@ -188,6 +202,16 @@ def build_node(p: NodeParams, with_fillets: bool = True) -> BuildResult:
         rib_b = _box(-half, half + t, half + t, half + t + p.rib_depth, z0, z1)
         ring = _cyl_z(cx, cy, boss_r + p.rib_depth, z0, z1)
         body = body.union(rib_a).union(rib_b).union(ring)
+
+    # vertical closure ribs at the leg free ends (cast analogue of a folded
+    # sheet-metal edge return); optimiser knob, off when thickness == 0
+    if p.end_rib_thickness > 0:
+        er = p.end_rib_thickness
+        end_a = _box(half + t, half + t + p.rib_depth,
+                     -half, -half + er, 0, L)
+        end_b = _box(-half, -half + er,
+                     half + t, half + t + p.rib_depth, 0, L)
+        body = body.union(end_a).union(end_b)
 
     # --- post envelope guarantee ------------------------------------------
     # Nothing of the casting may occupy the post's swept volume.

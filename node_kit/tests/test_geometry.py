@@ -145,6 +145,7 @@ def test_determinism():
         dict(post_gauge_mil=54, post_size=100.0,
              bracket_bolt_pattern=((-32.0, 30.0), (32.0, 30.0), (0.0, 170.0))),
         dict(boss_height=0.0),
+        dict(end_rib_thickness=10.0),
     ],
 )
 def test_parametric_variants_build(kwargs):
