@@ -144,19 +144,46 @@ Full history in runs/validation/gate3/result.json (regenerate with pytest).
 - `params.GAUGE_TABLE_MM`: SSMA-standard design thicknesses; the 95%
   delivered-thickness rule is quoted from AISI S100 but the clause number is
   not yet verified against the printed standard (Milestone 4 will resolve).
-- `checks/aisi_s100.py` (partial, Milestone 3 slice):
+- `checks/aisi_s100.py` (Milestone 4 complete — every flag below also
+  travels inside the returned clause_ref strings, so it lands in every
+  results row):
   - Table J3.3.1-1 bearing factor C breakpoints (3.0 / 4−0.1·d/t / 1.8)
     quoted from memory — confirm against the printed table.
   - Table J3.3.1-2 m_f rows for no-washer and oversized-hole cases (0.75,
     1.07) — UNVERIFIED; washered values (1.00, 1.33) high confidence but
     still to be checked.
   - Eq. J3.3.2-1 SI conversion coefficient α = 0.0394 — confirm.
-  - φ/Ω values quoted in docstrings (0.60/2.50 for J3.3.1, 0.65/2.22 for
-    J3.3.2) — UNVERIFIED, not yet used in any calculation.
-  - J3.3.2 applicability limits (thickness range, hole type, spacing/edge
-    minimums) not yet enforced — Milestone 4.
+  - J3.3.2 thickness applicability range [0.61, 6.35] mm — UNVERIFIED
+    bounds (enforced by the `bolt_bearing` wrapper, which raises rather
+    than extrapolating).
+  - Bolt Fnv/Fnt: placeholders 0.450·Fu / 0.563·Fu (shear, threads in/out)
+    and 0.75·Fu (tension) on the AISC-360 basis — the printed AISI table
+    values for the actual fastener spec MUST be substituted; exact clause
+    numbers for bolt shear/tension not asserted.
+  - Combined shear+tension: AISC-360-style linear interaction used as the
+    form; the printed AISI clause must be substituted verbatim. Applied on
+    nominal strengths with φ/Ω folded in afterwards — a simplification of
+    the code format, FLAGGED.
+  - Rupture section numbers J6.1 / J6.2 / J6.3 — medium confidence, verify.
+  - Net-section shear-lag factor Usl = min(1, 0.1 + 3d/s) case mapping for
+    washered single-column bolted flat sheet — UNVERIFIED.
+  - Spacing/edge minimums (3d spacing, 1.5d edge/end) — UNVERIFIED
+    multipliers.
+  - Standard hole oversizes (+0.8 mm / +1.6 mm at 12.7 mm break) —
+    UNVERIFIED.
+  - ALL φ/Ω entries in `SAFETY_FACTORS` — UNVERIFIED;
+    `demand_capacity_ratio` refuses to run without `allow_unverified=True`,
+    and the pipeline stamps `factors_unverified=True` into every row it
+    produces that way.
+- Worked-example tests (tests/test_aisi_s100.py tier 2) are SKIPPED
+  placeholders: supply, from the AISI Cold-Formed Steel Design Manual, the
+  printed values for (1) a single-bolt bearing example, (2) a bolted
+  flat-sheet net-section example, (3) a block-shear example, and (4) the
+  bolt Fnv/Fnt table entries for the actual fastener spec.
 - Gate 3 acceptance band (FEA ≥ J3.3.2 nominal, ≤ 1.15 × J3.3.1 mf=1.33) is
   engineering judgment, not a code provision — review.
+- ASD vs LRFD is still undeclared by the owner; no DCR is reportable until
+  it is.
 
 ## Open system-level questions for the owner
 
