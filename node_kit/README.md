@@ -280,7 +280,32 @@ steps for D: leg-end setback param, hole-symmetry guarantee as a
 validation rule, paired-assembly FEA variant, AISI bearing treated as
 double-shear-inside-sheet configuration (m_f 1.33 rows to verify).
 
-## Validation gates (Milestone 3) — results
+## Milestone 7 — NSGA-II search results (2026-08, seed 42)
+
+`python -m node_kit.search --pop 12 --gen 7` (84 evaluations, 74 unique
+candidates, 43 feasible, 31 castability failures; clamp-architecture load
+set LC2 + both-beams envelope; COARSE screening meshes).
+
+**Recommended: 7.45 kg (−22 % vs the 9.53 kg default), governing
+utilisation 0.70, all checks pass.** Parameters: wall 14.3, engagement
+148.4, rib 9.2×8.1, corner web 9.2, boss Ø52.3. Full reasoning in
+runs/report.md; front in runs/pareto.png.
+
+Findings the engineer should read:
+1. **The Pareto front is flat at ~0.70** across 7.4–11 kg: post-wall
+   bolt bearing (J3.3.2) is the capacity floor no matter how much casting
+   is added — the quantitative proof of the design philosophy. Capacity
+   moves only via bolt count/diameter/gauge (fixed in this search) or the
+   twin-L pairing (~2× bearing).
+2. **The optimiser thickened the wall (12→14.3) partly to satisfy the
+   hot-spot check**, whose limit scales with nominal wall (2.0×wall).
+   Legitimate under the stated limit, but FLAGGED: the foundry should
+   confirm whether the ~27 mm corner section needs the extra wall or a
+   riser note instead - a relative limit can be gamed.
+3. Engagement dropped 200→148 (bolt group + brackets still fit) - the
+   biggest single mass saver.
+4. Mass floor at ~7.4 kg comes from castability + layout-validity fences,
+   not strength.
 
 | Gate | Benchmark | Acceptance | Result |
 |------|-----------|------------|--------|
