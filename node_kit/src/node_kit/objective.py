@@ -499,9 +499,15 @@ def evaluate_candidate(
     sizes: AssemblySizes | None = None,
     seed: int = 42,
     parquet_out: str | None = "runs/results.parquet",
+    candidate_id: str = "default",
+    skip_fea_if_uncastable: bool = False,
 ) -> pd.DataFrame:
     """Full evaluation of one candidate. Returns the contract DataFrame
-    (one row per load case) and optionally writes it to Parquet."""
+    (one row per load case) and optionally writes it to Parquet.
+
+    skip_fea_if_uncastable: optimisation shortcut - a candidate that fails
+    the castability screens is infeasible regardless of stress results, so
+    the FEA solves are skipped and stress/ratio fields are NaN."""
     sizes = sizes or AssemblySizes()
     lcs = load_cases or default_load_cases()
     wd = pathlib.Path(workdir)
@@ -529,9 +535,54 @@ def evaluate_candidate(
         cast_cols.update(c.as_flat_dict())
     cast_cols["castability_all_pass"] = castab["all_pass"]
 
-    model = AssemblyModel(p, sizes, str(wd))
     Fy_cast = p.casting_material.Fy
     Fy_post = p.post_material.Fy
+
+    if skip_fea_if_uncastable and not castab["all_pass"]:
+        build_only = build_node(p)
+        rows = []
+        for lc in lcs:
+            row = {}
+            row.update(p.as_flat_dict())
+            row.update(lc.as_flat_dict())
+            row.update({
+                "mass_kg": build_only.mass_kg,
+                "casting_peak_vm_MPa": float("nan"),
+                "post_wall_peak_vm_MPa": float("nan"),
+                "joint_stiffness_N_mm": float("nan"),
+                "ratio_bearing_J332": float("nan"),
+                "ratio_bolt_shear": float("nan"),
+                "ratio_bolt_tension_interaction": float("nan"),
+                "ratio_net_section": float("nan"),
+                "ratio_block_shear": float("nan"),
+                "spacing_limits_pass": True,
+                "governing_bolt_V_N": float("nan"),
+                "governing_bolt_T_N": float("nan"),
+                "ratio_casting_vm": float("nan"),
+                "ratio_post_wall_vm": float("nan"),
+                **cast_cols,
+                "lc_pass": False,
+                "governing_limit_state": "castability",
+                "solve_wallclock_s": 0.0,
+                "git_sha": _git_sha(),
+                "timestamp_utc": pd.Timestamp.utcnow().isoformat(),
+                "rng_seed": seed,
+                "design_method": DESIGN_METHOD,
+                "factors_unverified": True,
+                "n_elements_casting": 0,
+                "n_elements_post": 0,
+                "bolt_forces_json": "[]",
+                "candidate_id": candidate_id,
+            })
+            rows.append(row)
+        df = pd.DataFrame(rows)
+        df["candidate_pass"] = False
+        if parquet_out:
+            pathlib.Path(parquet_out).parent.mkdir(parents=True, exist_ok=True)
+            df.to_parquet(parquet_out, index=False)
+        return df
+
+    model = AssemblyModel(p, sizes, str(wd))
 
     fea_by_lc = solve_all_lcs(model, lcs)
     rows = []
@@ -572,6 +623,7 @@ def evaluate_candidate(
             "factors_unverified": True,
             "n_elements_casting": model.n_cast_el,
             "n_elements_post": model.n_shell_el,
+            "candidate_id": candidate_id,
         })
         row["bolt_forces_json"] = json.dumps(fea["bolt_forces"])
         rows.append(row)
