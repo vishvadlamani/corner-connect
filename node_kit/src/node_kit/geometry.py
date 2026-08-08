@@ -118,6 +118,20 @@ def validate_hole_layout(p: NodeParams) -> None:
                     f"bracket hole at z={z} on leg {leg} intersects rib band "
                     f"[{z0}, {z0 + p.rib_thickness}]"
                 )
+    # every face hole must clear the cast floor band
+    if p.base_plate_thickness > 0:
+        for (leg, s, z) in post_bolt_positions(p):
+            if z - p.bolt_diameter / 2 <= p.base_plate_thickness:
+                raise ValueError(
+                    f"post bolt at z={z} on leg {leg} intersects the cast "
+                    f"floor (top at z={p.base_plate_thickness})"
+                )
+        for (leg, s, z) in bracket_hole_positions(p):
+            if z - p.bracket_bolt_diameter / 2 <= p.base_plate_thickness:
+                raise ValueError(
+                    f"bracket hole at z={z} on leg {leg} intersects the "
+                    f"cast floor (top at z={p.base_plate_thickness})"
+                )
     # face holes must stop short of the corner tangent web: heads and
     # bracket plates need the leg outer face flat up to the web line
     s_wedge = wedge_start_s(p)
@@ -269,6 +283,12 @@ def build_node(p: NodeParams, with_fillets: bool = True,
 
     body = leg_a.union(leg_b).union(corner).union(boss)
 
+    # optional cast floor: post-end bearing seat spanning the footprint
+    if p.base_plate_thickness > 0:
+        floor = _box(-half, half + t, -half, half + t,
+                     0, p.base_plate_thickness)
+        body = body.union(floor)
+
     for w in _corner_wedges(cx, cy, half + t, boss_r, half, 0, L):
         body = body.union(w)
 
@@ -293,10 +313,12 @@ def build_node(p: NodeParams, with_fillets: bool = True,
         body = body.union(end_a).union(end_b)
 
     # --- post envelope guarantee ------------------------------------------
-    # Nothing of the casting may occupy the post's swept volume.
+    # Nothing of the casting may occupy the post's swept volume. With a cast
+    # floor, the envelope starts at the floor top (the post SITS on it).
+    z_env = p.base_plate_thickness if p.base_plate_thickness > 0 else -bh - L
     post_prism = _box(-half - p.post_size, half, -half - p.post_size, half,
-                      -bh - L, 2 * L + bh)
-    # (oversized in -x/-y/z so the cut face is exactly the post face planes)
+                      z_env, 2 * L + bh)
+    # (oversized in -x/-y so the cut faces are exactly the post face planes)
     body = body.cut(post_prism)
 
     # --- holes --------------------------------------------------------------

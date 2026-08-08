@@ -197,6 +197,56 @@ buys back the integrated rod boss, no welds, and machined datums. An
 aggressive-but-castable parameter set (8 mm wall, 160 mm engagement,
 slimmer boss/ribs) builds at 5.2 kg — the optimiser's hunting ground.
 
+## Milestone 6 results — default candidate, 5 storeys, norm loads (LRFD)
+
+| LC | casting peak vM | post wall peak | stiffness | governing | pass |
+|----|------------------|----------------|-----------|-----------|------|
+| LC1 stack 203 kN | 228 MPa (0.95×Fy) | 43 MPa | 2.1e6 N/mm | casting vM | ✗ |
+| LC2 uplift 86 kN | 189 MPa (0.79×Fy) | 90 MPa | 1.9e6 N/mm | casting vM | ✗ |
+| LC3 beam 40.6 kN | 72 MPa (0.30×Fy) | 86 MPa | 7.4e5 N/mm | bearing 0.64 | ✗* |
+| LC4 beam 40.6 kN | 69 MPa (0.29×Fy) | 87 MPa | 7.4e5 N/mm | bearing 0.64 | ✗* |
+| LC5 combined | 349 MPa (**1.45×Fy**) | 71 MPa | 2.0e6 N/mm | casting vM | ✗ |
+
+\* LC3/LC4 fail only via the candidate-level castability hot-spot flag
+(corner inscribed sphere 27.8 mm vs 24 limit); their strength ratios pass.
+
+READING (the design story so far): the legs and bolted connection behave
+exactly per the design philosophy — casting loafing at ~0.3, post-wall
+bearing governing at 0.64. The FAILURE is the Architecture-B stacking
+path: 203 kN accumulated gravity squeezed through the small corner collar
+annulus drives the boss/collar junction to and past yield (LC1 0.95,
+LC5 1.45 — peak values at a sharp junction, mesh-sensitive, but the trend
+is real). Three exits, all live options:
+  1. **Architecture A (clamp)** — LC1/LC5 stacking vanishes into post
+     continuity; the collar only ever sees LC2 uplift (0.79, passes).
+  2. **Cast floor plate** (`base_plate_thickness > 0`, IMPLEMENTED) —
+     stacked gravity bears post-end-on-plate over the full footprint
+     instead of the corner collar. +2.1 kg (11.65 vs 9.53), moldable on
+     the same diagonal parting (0 trapped columns). Adds an AISI web-
+     crippling check for the post end ring (Milestone 4 backlog) and
+     forces storey-segment posts.
+  3. **Bigger collar/boss** — parameter-space fix, fights the bracket-face
+     clearance; the optimiser can explore it.
+
+## Joint topology trade study (owner exploring, 2026-08)
+
+| | 2-face open L (current) | open + cast floor (implemented) | 4-face closed sleeve (proposed) |
+|---|---|---|---|
+| Post faces engaged | 2 | 2 | 4 (bolt capacity ~2× per row) |
+| Fastening | bolts exit bare post faces (blind side) | same | **through-bolts casting-to-casting across the box** — no blind fastening, bearing on TWO walls |
+| Gravity path | bolts (clamp) or collar (stack) | post end on plate (best bearing) | sleeve + optional internal shelf |
+| Casting | 2-part mold, no cores (verified) | 2-part mold, no cores (verified) | REQUIRES an internal core + deep internal machining or as-cast socket fit |
+| Post continuity | compatible (clamp) | forces storey segments | slide-through compatible unless shelved |
+| Kit rationalisation | corner only; edge/interior joints need T and + variants | same | **one universal hub serves corner/edge/interior** (brackets on any of 4 faces) |
+| Torsion/symmetry | asymmetric | asymmetric | symmetric, torsionally stiff |
+| Erection | clamp-on anywhere | drop-in, self-seating | drop-in, self-jigging |
+
+The closed sleeve does NOT compromise strength — it is the strongest and
+most product-rational option; its costs are foundry (cored pattern, core
+shift tolerance, internal access for machining) and unit mass (~4 walls
+vs 2). Decision pending owner; geometry.py currently implements the two
+open topologies via `base_plate_thickness`.
+
 ## Validation gates (Milestone 3) — results
 
 | Gate | Benchmark | Acceptance | Result |

@@ -170,6 +170,10 @@ class NodeParams:
 
     # ---- assembly ----
     fit_clearance: float = 0.25       # node-to-post sliding fit, per side, mm
+    base_plate_thickness: float = 0.0  # cast floor under the post footprint,
+                                       # mm (0 = open boot; >0 = socket seat:
+                                       # post end bears on the plate, forces
+                                       # Architecture B storey-segment posts)
 
     # ---- casting / manufacturing ----
     fillet_radius: float = 8.0        # mm
@@ -196,7 +200,8 @@ class NodeParams:
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be > 0, got {getattr(self, name)}")
         for name in ("boss_height", "draft_angle", "machining_allowance",
-                     "shrink_factor", "end_rib_thickness"):
+                     "shrink_factor", "end_rib_thickness",
+                     "base_plate_thickness"):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must be >= 0, got {getattr(self, name)}")
         if self.rib_count < 0:

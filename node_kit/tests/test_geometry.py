@@ -105,21 +105,44 @@ def test_mass_sanity(default_build):
     assert 2.0 < default_build.mass_kg < 60.0
 
 
-def test_nothing_intrudes_into_post_envelope(default_build):
-    """Core guarantee: casting must stay clear of the post's swept volume."""
+def _post_envelope_intrusion(build, p):
+    """Overlap volume between the casting and the post's swept volume
+    (above the cast floor, if any)."""
     import cadquery as cq
 
-    p = NodeParams()
     half = p.post_size / 2
     L = p.engagement_length
+    z0 = (p.base_plate_thickness if p.base_plate_thickness > 0
+          else -p.boss_height - L)
     probe = (
         cq.Workplane("XY")
-        .transformed(offset=(0, 0, -p.boss_height - L / 2))
-        .box(2 * half - 1e-3, 2 * half - 1e-3, 4 * L, centered=(True, True, False))
+        .transformed(offset=(0, 0, z0 + 1e-3))
+        .box(2 * half - 1e-3, 2 * half - 1e-3, 4 * L,
+             centered=(True, True, False))
     )
-    overlap = default_build.solid.intersect(probe)
-    vol = sum(s.Volume() for s in overlap.solids().vals()) if overlap.solids().vals() else 0.0
+    overlap = build.solid.intersect(probe)
+    solids = overlap.solids().vals()
+    return sum(s.Volume() for s in solids) if solids else 0.0
+
+
+def test_nothing_intrudes_into_post_envelope(default_build):
+    """Core guarantee: casting must stay clear of the post's swept volume."""
+    vol = _post_envelope_intrusion(default_build, NodeParams())
     assert vol < 1.0, f"casting intrudes {vol:.3f} mm^3 into the post envelope"
+
+
+def test_floor_variant_seats_post_without_intrusion():
+    """base_plate_thickness > 0: floor fills the footprint below the post,
+    envelope above the floor stays clear, and hole/floor clashes raise."""
+    p = NodeParams(base_plate_thickness=12.0)
+    build = build_node(p, with_fillets=False)
+    assert build.solid.val().isValid()
+    assert _post_envelope_intrusion(build, p) < 1.0
+    base = build_node(NodeParams(), with_fillets=False)
+    assert build.volume_mm3 > base.volume_mm3  # the floor added metal
+    with pytest.raises(ValueError, match="floor"):
+        # lowest bolt row at z=60 with r=6: a 55 mm floor clashes
+        validate_hole_layout(NodeParams(base_plate_thickness=55.0))
 
 
 def test_holes_actually_cut(default_build):
