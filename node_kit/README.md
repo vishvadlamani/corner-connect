@@ -83,27 +83,19 @@ Resulting LC magnitudes at the ground-storey corner node (LRFD level):
 LC1 = 203 kN, LC2 = 86 kN, LC3 = LC4 = 40.6 kN, LC5 combined (see
 `params.default_load_cases()` for the tributary derivation, written out).
 
-## ⚠️ Placeholders awaiting real values — DO NOT DESIGN AGAINST THESE
+## ⚠️ Remaining placeholders — confirm before sealing
 
-The project owner has **not yet supplied** the following. Current values are
-order-of-magnitude stand-ins so the pipeline could be built and validated.
-Any optimisation output produced with them is meaningless for design.
+Loads are now NORM-DERIVED (see "Adopted norms"; LRFD adopted), which
+upgrades them from fiction to defensible defaults — but they are still not
+site- or product-specific. Outstanding:
 
-| Item | Placeholder in `params.py` | Needed from owner |
-|------|---------------------------|-------------------|
-| LC1 gravity compression | 50 kN | real factored/unfactored magnitude + which |
-| LC2 rod uplift          | 40 kN | " |
-| LC3 bracket shear X     | 20 kN | " |
-| LC4 bracket shear Y     | 20 kN | " |
-| Post outer size         | 150 mm square (norm-based) | roll-former confirmation |
-| Post gauge              | 97 mil | actual gauge |
-| CFS coil grade          | 50 ksi (Fy 345 / Fu 450 MPa) | actual coil spec |
-| Bolt grade              | ISO 8.8 | actual fastener spec |
-
-Also unstated: whether load magnitudes are ASD or LRFD level. The check layer
-(Milestone 4) keeps capacities unfactored and applies the resistance/safety
-factor at the demand/capacity step, so this must be resolved before results
-are read.
+| Item | Current value | Needed from owner |
+|------|---------------|-------------------|
+| Wind pressure | 1.0 kPa | site wind per ASCE 7 (drives LC2) |
+| Post outer size / gauge | 150 mm sq / 97 mil (norm-based) | roll-former confirmation |
+| CFS coil grade | 50 ksi (Fy 345 / Fu 450 MPa) | actual coil spec |
+| Bolt grade | ISO 8.8, M12 | actual fastener spec + printed AISI Fnv/Fnt |
+| Joint architecture | undecided | clamp (A) vs stack (B) — see open questions |
 
 ## Castability (Milestone 5) — first real design change from the pipeline
 
