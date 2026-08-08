@@ -247,6 +247,39 @@ shift tolerance, internal access for machining) and unit mass (~4 walls
 vs 2). Decision pending owner; geometry.py currently implements the two
 open topologies via `base_plate_thickness`.
 
+### D — TWIN-L SPLIT COLLAR (owner idea, 2026-08): two of the SAME L
+casting, the second rotated 180° about the post axis, clamping all four
+post faces. Analysis:
+
+* The current L already pairs correctly: a 180° rotation maps it onto the
+  opposite two faces; the symmetric hole pattern (±gauge, ±bracket-x)
+  means every post bolt lines up with the opposite half — **every bolt
+  becomes a casting-to-casting through-bolt** bearing on BOTH post walls
+  (≈2× bolted capacity per row, and the pair confines the thin walls).
+* Legs meet only at the two free corners, end-face to side-face, with no
+  overlap (verify with a small leg-end setback for field tolerance —
+  parametric TODO).
+* One pattern, one SKU: use ONE half at light corners, TWO wherever more
+  capacity or beam faces are needed (corner/edge/interior joints from the
+  same casting). Two tie-rod corners per paired joint.
+* No core (each half is the proven 2-part moldable L), clamps a
+  CONTINUOUS post (Architecture A - the LC5 stacking failure never
+  happens), install/retrofit at any height.
+* Caveats: paired halves connect only through bolts and post (less
+  torsional stiffness than a monolithic sleeve - corner interlock feature
+  possible later); long through-bolts across the hollow box may need
+  compression sleeves at torque-up; per-joint mass when paired is 2× one
+  half (optimiser drives the half down).
+
+RECOMMENDATION (pipeline author): adopt D as the product architecture —
+single-L clamp (A) and twin-L collar are the same casting, so Milestone 7
+optimises ONE part that serves both; keep the floor plate (B) as a
+base/transfer-level variant; drop the cored monolithic sleeve (C), which
+the twin-L dominates on castability at equal function. Engineering next
+steps for D: leg-end setback param, hole-symmetry guarantee as a
+validation rule, paired-assembly FEA variant, AISI bearing treated as
+double-shear-inside-sheet configuration (m_f 1.33 rows to verify).
+
 ## Validation gates (Milestone 3) — results
 
 | Gate | Benchmark | Acceptance | Result |
