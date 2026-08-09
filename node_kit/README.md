@@ -510,3 +510,27 @@ panelized LGSF norm. Enable the plate - and the bearing load cases plus a
 post-end web-crippling check - wherever posts bear ON the node instead:
 base/transfer levels, or kit-wide if the stacking detail says so. That
 choice is the owner's stacking-detail decision, recorded here.
+
+## Round 2 — plate-on architecture, quantified (2026-08)
+
+Owner decision: panels drop on, posts bear on the node plate. Search with
+9 design vars (plate thickness + bolt rows/diameter as levers, engagement
+floor 110): 74 candidates, 42 feasible.
+
+**Recommended plate-on half: 13.73 kg** (wall 15.3, engagement 214, plate
+13.7, 2x2 M12 per leg). Governing: LC2 bearing 0.90 + LC1S casting 0.82.
+
+THE NUMBER THAT MATTERS: **drop-on stacking costs ~2x casting mass** -
+6.47 kg (platform stacking, gravity bypasses the casting) vs 13.05-13.73
+kg (plate-on, the casting IS the column splice for 203 kN). The optimiser
+also used LENGTH as capacity: feasible engagement ~210 vs 147 plate-off.
+"Shorter is better" is false under plate-on loads at 5 storeys - the data
+says the opposite.
+
+CAVEAT on the fastener levers: every feasible candidate landed on 2 rows
+of M12; the M16 / 3-row niches were under-sampled (3 rows only fits
+engagement >= 180, shrinking their draw probability) - a longer search or
+niche seeding should confirm before concluding M16 buys nothing.
+Web-crippling ratio reports NaN until printed Table G coefficients are
+supplied. All prior caveats (wind placeholder, phi/Omega, hot-spot 3.0
+foundry flag, single-half FEA) stand.
