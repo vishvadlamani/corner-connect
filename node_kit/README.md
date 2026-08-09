@@ -652,3 +652,24 @@ economics favour volume production over one-offs; code path is
 proprietary-product testing (ICC-ES) rather than catalog parts with
 existing ESRs. The consolidation bet is that erection speed + fewer
 SKUs + engineered load paths beat commodity-clip economics at kit scale.
+
+## Two-tier product family idea (from owner's concept-render session, 2026-08)
+
+An image-model render of the connector converged on this repo's
+architecture (L faces, gussets, base plate, top locating boss, back-to-
+back pairing) but drew it as 3 mm folded sheet with an indicative card
+capacity of 12.5 kN uplift / 15 kN shear at ~1.4 kg. Traceable comparison
+(bolt-bearing proxy, phi UNVERIFIED as everywhere):
+
+* render class: 8.8 kN uplift per kg; our cast node: 13.3 kN/kg - the
+  casting is MORE weight-efficient, it just plays in a heavier class
+  (86 kN uplift / 203 kN stack demands vs the card's 12.5/15).
+* at the render's fastening spec (#10 screws into 43 mil), our uplift
+  demand would need ~31 screws per joint.
+
+PRODUCT IDEA worth carrying: one architecture, two implementations -
+folded ~3 mm LIGHT node (upper storeys, low-rise, partition-class, cheap
+tooling) + CAST node (ground/transfer levels, heavy class), sharing hole
+patterns and interfaces so the kit reads as one system. Also adopt from
+the render: chamfered lead-in on pocket tops as an erection
+centering/locating feature (cheap machining note).
