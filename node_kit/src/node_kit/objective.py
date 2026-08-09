@@ -264,6 +264,35 @@ class AssemblyModel:
         self.nsets["POSTTOP"] = shell_off + nodes_where(
             shell_mesh, lambda x, y, z: abs(z - self.zp[1]) < 0.05)
 
+        # plate-on stacking: post-end bearing bands on the plate top and
+        # the node underside. Band width includes the panel BOTTOM TRACK
+        # footprint (the track spreads the thin post-end ring over ~10 mm
+        # of plate - modelling the bare 2.6 mm ring as nodal loads creates
+        # a fictitious singular peak at screening mesh sizes)
+        if p.base_plate_thickness > 0:
+            bpt = p.base_plate_thickness
+            band = lambda x, y: (half - p.post_thickness - 8.0
+                                 <= max(abs(x), abs(y)) <= half + 0.5)
+            self.nsets["RINGTOP"] = nodes_where(
+                node_mesh, lambda x, y, z: abs(z - bpt) < 0.05 and band(x, y))
+            self.nsets["RINGBOT"] = nodes_where(
+                node_mesh, lambda x, y, z: abs(z) < 0.05 and band(x, y))
+            # bearing applied as face pressure (nodal loads spike the
+            # extrapolated stress at screening mesh sizes)
+            self.faces_ring_top = [
+                (ei + 1, fid) for (ei, fid) in faces_where(
+                    node_mesh, self.node_cells,
+                    lambda x, y, z: abs(z - bpt) < 0.05 and band(x, y))]
+            area = 0.0
+            from .mesh import TET_FACES
+            for (eid, fid) in self.faces_ring_top:
+                conn = self.node_cells[eid - 1]
+                tri = [conn[j] for j in TET_FACES[fid]]
+                a, b_, c = (self.points[tri[0]], self.points[tri[1]],
+                            self.points[tri[2]])
+                area += 0.5 * np.linalg.norm(np.cross(b_ - a, c - a))
+            self.ring_top_area = area
+
         # collar top face area (linear-triangle approximation)
         area = 0.0
         for (eid, fid) in self.faces_collar_top:
@@ -321,10 +350,19 @@ class AssemblyModel:
         face_b_rims = [r for r in self.bracket_rims if r["leg"] == "B"]
 
         if lc.axial_N:
-            pressure = lc.axial_N / self.collar_top_area
-            for (eid, fid) in self.faces_collar_top:
-                dloads.append((eid, fid, pressure))
-            boundaries.append(("COLLARBOT", 3, 3, 0.0))
+            if p.base_plate_thickness > 0:
+                # plate-on stacking: upper post END (spread by the panel
+                # bottom track) bears on the plate top; the node underside
+                # bears on the storey below - band-to-band path
+                pressure = lc.axial_N / self.ring_top_area
+                for (eid, fid) in self.faces_ring_top:
+                    dloads.append((eid, fid, pressure))
+                boundaries.append(("RINGBOT", 3, 3, 0.0))
+            else:
+                pressure = lc.axial_N / self.collar_top_area
+                for (eid, fid) in self.faces_collar_top:
+                    dloads.append((eid, fid, pressure))
+                boundaries.append(("COLLARBOT", 3, 3, 0.0))
         if lc.rod_tension_N:
             rim_loads(self.bracket_rims, lc.rod_tension_N, 3, +1.0)
             boundaries.append(("COLLARTOP", 3, 3, 0.0))
@@ -427,7 +465,8 @@ def _post_lc(model: AssemblyModel, lc: LoadCase, res: dict,
     F = max(abs(lc.axial_N), abs(lc.rod_tension_N),
             abs(lc.shear_x_N), abs(lc.shear_y_N))
     if lc.axial_N:
-        d_meas = abs(_mean_uz(disp, model.nsets["COLLARTOP"]))
+        key = "RINGTOP" if "RINGTOP" in model.nsets else "COLLARTOP"
+        d_meas = abs(_mean_uz(disp, model.nsets[key]))
     elif lc.rod_tension_N:
         rims = np.concatenate([r["rim"] for r in model.bracket_rims])
         d_meas = abs(_mean_uz(disp, rims))
@@ -472,6 +511,10 @@ def aisi_ratios(p: NodeParams, fea: dict, method: str = DESIGN_METHOD) -> dict:
             dcr(T, pn_t_red, "bolt_tension") if pn_t_red > 0 else float("inf"),
         "ratio_net_section": float("nan"),
         "ratio_block_shear": float("nan"),
+        # post-end bearing on the plate: equation implemented
+        # (aisi.web_crippling) but coefficients must come from the printed
+        # Table G - reported NaN until the owner supplies them
+        "ratio_web_crippling": float("nan"),
     }
     ok, _, _ = aisi.spacing_and_edge_limits(
         d, min(p.bolt_pitch, p.bolt_gauge), p.bolt_edge_distance,

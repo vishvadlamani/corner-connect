@@ -54,6 +54,7 @@ SAFETY_FACTORS: dict[str, FactorEntry] = {
     "net_section_rupture": FactorEntry(0.65, 2.22),
     "shear_rupture": FactorEntry(0.70, 2.22),
     "block_shear_rupture": FactorEntry(0.70, 2.22),
+    "web_crippling": FactorEntry(0.75, 2.00),
 }
 
 
@@ -313,6 +314,38 @@ def block_shear_rupture(
     governing = ("block shear (shear-yield path)" if yield_path <= rupture_path
                  else "block shear (shear-rupture path)")
     return Pn, governing, "AISI S100-16 J6.3"
+
+
+def web_crippling(
+    t: float, Fy: float, theta_deg: float,
+    R: float, N: float, h: float,
+    C: float, C_R: float, C_N: float, C_h: float,
+) -> tuple[float, str, str]:
+    """Nominal web crippling strength of a CFS web at a bearing end:
+
+        Pn = C * t^2 * Fy * sin(theta) * (1 - C_R*sqrt(R/t))
+             * (1 + C_N*sqrt(N/t)) * (1 - C_h*sqrt(h/t))
+
+    Form per AISI S100-16 Chapter G web-crippling provision (equation
+    number and the COEFFICIENTS C/C_R/C_N/C_h are case-dependent - taken
+    from the printed Table for the section type, fastening condition and
+    loading case). Coefficients are REQUIRED arguments precisely so no
+    memory-quoted value can leak into a result: supply them from the
+    printed standard. Used for the post END bearing on the cast base
+    plate (plate-on stacking architecture).
+
+    t = web thickness, R = inside bend radius, N = bearing length,
+    h = flat web depth (all mm); theta = web angle to bearing surface.
+    """
+    import math as _m
+    th = _m.radians(theta_deg)
+    Pn = (C * t ** 2 * Fy * _m.sin(th)
+          * (1 - C_R * _m.sqrt(R / t))
+          * (1 + C_N * _m.sqrt(N / t))
+          * (1 - C_h * _m.sqrt(h / t)))
+    return max(Pn, 0.0), "web crippling (post end bearing)", (
+        "AISI S100-16 Chapter G web crippling (equation number and "
+        "coefficients from the printed Table - caller-supplied)")
 
 
 # ---------------------------------------------------------------------------

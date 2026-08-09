@@ -41,6 +41,9 @@ def aggregate(df: pd.DataFrame) -> pd.DataFrame:
             "rib_depth": float(g["rib_depth"].iloc[0]),
             "corner_web_thickness": float(g["corner_web_thickness"].iloc[0]),
             "boss_diameter": float(g["boss_diameter"].iloc[0]),
+            "base_plate_thickness": float(g["base_plate_thickness"].iloc[0]),
+            "bolt_rows": int(g["bolt_rows"].iloc[0]),
+            "bolt_diameter": float(g["bolt_diameter"].iloc[0]),
             "stiffness_min_N_mm": float(
                 np.nanmin(g["joint_stiffness_N_mm"].to_numpy(dtype=float))
                 if np.isfinite(g["joint_stiffness_N_mm"].to_numpy(dtype=float)).any()

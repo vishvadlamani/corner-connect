@@ -9,31 +9,35 @@ from node_kit import search as S
 from node_kit import report as R
 
 
-def test_decode_midpoint_is_valid():
-    x = (S.XL + S.XU) / 2
+def test_decode_known_point_is_valid():
+    # wall, engagement, rib_t, rib_depth, web, boss, plate, rows, dia
+    x = [13.5, 165.0, 10.0, 12.0, 10.0, 60.0, 12.0, 0.2, 0.8]
     p = S.decode(x)
-    assert p.wall_thickness == pytest.approx(12.0)
+    assert p.wall_thickness == pytest.approx(13.5)
     assert p.spine_split is True          # architecture E baked in
     assert p.spine_bolt_diameter == S.SPINE_BOLT_D
-    # bracket pattern scaled with engagement
-    zs = sorted({z for (_, z) in p.bracket_bolt_pattern})
-    L = p.engagement_length
-    assert zs[0] == pytest.approx(0.3 * L, abs=0.1)
-    assert zs[1] == pytest.approx(0.7 * L, abs=0.1)
+    assert p.base_plate_thickness == pytest.approx(12.0)
+    assert p.bolt_rows == 2 and p.bolt_diameter == 16.0
+    assert p.bolt_pitch == pytest.approx(52.0)      # 3.25d for M16
+    assert p.bolt_edge_distance == pytest.approx(32.0)
+    # brackets sit outboard of bolt columns, between plate and bolt rows
+    from node_kit.geometry import validate_hole_layout
+    validate_hole_layout(p)   # must not raise
+    ss = sorted({abs(s) for (s, _) in p.bracket_bolt_pattern})
+    assert ss == [pytest.approx(p.bolt_gauge / 2 + 10.0)]
+
+
+def test_search_lcs_include_stacked_bearing():
+    ids = [lc.case_id for lc in S.search_load_cases()]
+    assert ids == ["LC1S", "LC2", "LCC"]
+    lc1s = S.search_load_cases()[0]
+    assert lc1s.axial_N > 0
 
 
 def test_candidate_id_deterministic():
     x = [10.0, 180.0, 9.0, 12.0, 10.0, 48.0]
     assert S.candidate_id_for(x) == S.candidate_id_for(list(x))
     assert S.candidate_id_for(x) != S.candidate_id_for([10.1] + x[1:])
-
-
-def test_search_load_cases_clamp_architecture():
-    lcs = S.search_load_cases()
-    ids = [lc.case_id for lc in lcs]
-    assert ids == ["LC2", "LCC"]
-    assert all(lc.axial_N == 0.0 for lc in lcs), \
-        "clamp architecture: no stacking axial in the casting"
 
 
 def test_cast_violation_directions():
@@ -71,7 +75,8 @@ def test_aggregate_and_pick(tmp_path):
             "wall_thickness": 10.0, "engagement_length": 180.0,
             "rib_thickness": 9.0, "rib_depth": 12.0,
             "corner_web_thickness": 10.0, "boss_diameter": 48.0,
-            "governing_limit_state": "x",
+            "base_plate_thickness": 12.0, "bolt_rows": 3,
+            "bolt_diameter": 12.0, "governing_limit_state": "x",
         })
     agg = R.aggregate(pd.DataFrame(rows))
     assert len(agg) == 4

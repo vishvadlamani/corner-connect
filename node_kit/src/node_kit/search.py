@@ -45,10 +45,13 @@ import pandas as pd
 from .params import NodeParams, LoadCase, default_load_cases, N_STOREYS_DEFAULT
 
 SEED = 42
-XL = np.array([8.0, 140.0, 8.0, 8.0, 8.0, 54.0])
-XU = np.array([16.0, 220.0, 14.0, 18.0, 16.0, 68.0])
+# vars: wall, engagement, rib_t, rib_depth, corner_web, boss, plate,
+#       rows_choice (<0.5 -> 2 rows, else 3), dia_choice (<0.5 -> M12, else M16)
+XL = np.array([8.0, 110.0, 8.0, 8.0, 8.0, 54.0, 8.0, 0.0, 0.0])
+XU = np.array([16.0, 220.0, 14.0, 18.0, 16.0, 68.0, 16.0, 1.0, 1.0])
 VAR_NAMES = ["wall_thickness", "engagement_length", "rib_thickness",
-             "rib_depth", "corner_web_thickness", "boss_diameter"]
+             "rib_depth", "corner_web_thickness", "boss_diameter",
+             "base_plate_thickness", "rows_choice", "dia_choice"]
 # architecture E (pinwheel): every candidate is the SPLIT half; spine bolts
 # M10 keep the boss-flat strip rule satisfiable from boss 54 up
 SPINE_BOLT_D = 10.0
@@ -71,9 +74,25 @@ _CAST_LE = {"section_ratio", "undercut", "hot_spot"}  # pass when value <= limit
 def decode(x) -> NodeParams:
     kw = dict(zip(VAR_NAMES, [float(v) for v in x]))
     L = kw["engagement_length"]
+    # discrete fastener strategy from threshold encodings
+    rows = 2 if kw.pop("rows_choice") < 0.5 else 3
+    d = 12.0 if kw.pop("dia_choice") < 0.5 else 16.0
+    kw["bolt_rows"] = rows
+    kw["bolt_diameter"] = d
+    kw["bolt_pitch"] = max(40.0, round(3.25 * d, 1))   # >= 3d AISI screen
+    kw["bolt_gauge"] = kw["bolt_pitch"]
+    kw["bolt_edge_distance"] = max(25.0, 2.0 * d)
+    # brackets adapt to the fastener strategy: columns 10 mm outboard of
+    # the post-bolt columns, rows midway between the plate/top edge and
+    # the outermost bolt rows
+    plate = kw["base_plate_thickness"]
+    row_lo = L / 2 - (rows - 1) * kw["bolt_pitch"] / 2
+    row_hi = L / 2 + (rows - 1) * kw["bolt_pitch"] / 2
+    s_b = round(kw["bolt_gauge"] / 2 + 10.0, 1)
+    z_lo = round((plate + row_lo) / 2, 1)
+    z_hi = round((row_hi + L) / 2, 1)
     kw["bracket_bolt_pattern"] = (
-        (-30.0, round(0.3 * L, 1)), (30.0, round(0.3 * L, 1)),
-        (-30.0, round(0.7 * L, 1)), (30.0, round(0.7 * L, 1)),
+        (-s_b, z_lo), (s_b, z_lo), (-s_b, z_hi), (s_b, z_hi),
     )
     kw["spine_split"] = True
     kw["spine_bolt_diameter"] = SPINE_BOLT_D
@@ -81,13 +100,44 @@ def decode(x) -> NodeParams:
 
 
 def search_load_cases() -> list[LoadCase]:
+    """Plate-on stacking architecture (owner decision): panels drop on,
+    posts bear on the node plate, so the stacked bearing case is LIVE
+    alongside uplift and the both-beams envelope."""
     lcs = {lc.case_id: lc for lc in default_load_cases(N_STOREYS_DEFAULT)}
     lc3 = lcs["LC3"]
     return [
+        LoadCase("LC1S", "stacked gravity: post end ring bearing on the "
+                         "plate (plate-on stacking)",
+                 axial_N=lcs["LC1"].axial_N),
         lcs["LC2"],
-        LoadCase("LCC", "both beams simultaneous (clamp-architecture envelope)",
+        LoadCase("LCC", "both beams simultaneous envelope",
                  shear_x_N=lc3.shear_x_N, shear_y_N=lc3.shear_x_N),
     ]
+
+
+def params_from_row(row) -> NodeParams:
+    """Rebuild the exact NodeParams of a results row (for re-rendering and
+    pattern export of a chosen candidate)."""
+    import ast
+
+    return NodeParams(
+        wall_thickness=float(row["wall_thickness"]),
+        engagement_length=float(row["engagement_length"]),
+        rib_thickness=float(row["rib_thickness"]),
+        rib_depth=float(row["rib_depth"]),
+        corner_web_thickness=float(row["corner_web_thickness"]),
+        boss_diameter=float(row["boss_diameter"]),
+        base_plate_thickness=float(row["base_plate_thickness"]),
+        bolt_rows=int(row["bolt_rows"]),
+        bolt_diameter=float(row["bolt_diameter"]),
+        bolt_pitch=float(row["bolt_pitch"]),
+        bolt_gauge=float(row["bolt_gauge"]),
+        bolt_edge_distance=float(row["bolt_edge_distance"]),
+        bracket_bolt_pattern=tuple(
+            ast.literal_eval(row["bracket_bolt_pattern"])),
+        spine_split=bool(row["spine_split"]),
+        spine_bolt_diameter=float(row["spine_bolt_diameter"]),
+    )
 
 
 def candidate_id_for(x) -> str:
