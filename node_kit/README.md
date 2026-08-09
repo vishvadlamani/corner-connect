@@ -673,3 +673,25 @@ tooling) + CAST node (ground/transfer levels, heavy class), sharing hole
 patterns and interfaces so the kit reads as one system. Also adopt from
 the render: chamfered lead-in on pocket tops as an erection
 centering/locating feature (cheap machining note).
+
+## Node family roadmap (second-reviewer convergence, 2026-08)
+
+Independent AI review of the concept converged on the same architecture
+conclusions this repo reached, and added two useful frames now adopted:
+1. NODE FAMILY, not one bracket: 90-corner (built), T and cross (paired
+   pinwheel - built), plus future members: floor/wall band node,
+   wall/roof (pitched) node, opening (header/jamb) node. RULE: the
+   member-facing interfaces (hole patterns, pocket dims, datums) stay
+   IDENTICAL across the family.
+2. LATERAL-SYSTEM BOUNDARY re-affirmed: the node does alignment, member
+   termination, load transfer and local stiffness; sheathing/straps/
+   diaphragms keep the distributed lateral work. The node offers
+   attachment, never replaces the system.
+Reviewer concerns disposed with data: "gusset convergence stress
+concentration" - real, already measured (collar 0.87 under LC2, the
+casting's known working zone; spine is already the continuous backbone
+its sketch recommends). "Plate buckling governs CFS" - true for the
+sheet tier (b/t~50: sigma_cr ~ 290 MPa ~ yield) and moot for the cast
+walls (b/t~11: sigma_cr ~ 5600 MPa, 23x yield; classic k=4 plate
+formula); pressed-rib advice belongs to the future folded LIGHT node.
+Reviewer handoff pack with exact dimensions: runs/handoff.md.
