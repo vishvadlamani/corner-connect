@@ -627,3 +627,28 @@ container corner castings on corrugated sheet). Three rules:
    galvanize/mask before final machining of fits) with compatible coated
    fasteners, or the casting rusts and locally consumes zinc at contact
    points in wet service. NOT yet reflected anywhere in this repo.
+
+## Product thesis: the consolidation ledger (owner, 2026-08)
+
+"Instead of a bunch of LGSF components, consolidate them into one strong
+connector." What a conventional LGSF storey-corner joint uses, function
+by function, vs this node:
+
+| Function | Conventional LGSF hardware | In the cast node |
+|---|---|---|
+| Vertical bearing continuity | squash blocks, web/bearing stiffeners, in-line framing alignment | base plate seat + machined top/bottom datums |
+| Beam/joist end support | joist hangers + clip angles + reinforcing angles | integral bracket faces + bolt groups |
+| Uplift continuity (multi-storey) | hold-downs + continuous rod system + bearing plates + take-up devices | centre rod boss through the spine (rod passes through, nut on collar) |
+| Panel-to-panel verticals | doubled end studs screwed into built-up members | pinwheel pockets clustering 2-4 posts around one spine |
+| Lateral/brace termination | strap gussets + hold-down chords | bolt groups + (open item) brace lug |
+| Erection alignment | string lines, clamps, labour | self-jigging pockets, machined faces |
+| Fastening count per joint | dozens-to-hundreds of screws across 5-8 hardware pieces | ~10-14 bolts + 1-2 castings |
+
+Costs of consolidation (first principles, both directions): failure
+consequence concentrates into one part (hence casting NDT + testing
+path); joint tolerance budget concentrates into the casting (hence
+machined datums); per-piece weight 6-13 kg vs grams-to-kg clips; unit
+economics favour volume production over one-offs; code path is
+proprietary-product testing (ICC-ES) rather than catalog parts with
+existing ESRs. The consolidation bet is that erection speed + fewer
+SKUs + engineered load paths beat commodity-clip economics at kit scale.
