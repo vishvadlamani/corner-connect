@@ -534,3 +534,28 @@ niche seeding should confirm before concluding M16 buys nothing.
 Web-crippling ratio reports NaN until printed Table G coefficients are
 supplied. All prior caveats (wind placeholder, phi/Omega, hot-spot 3.0
 foundry flag, single-half FEA) stand.
+
+## AUDIT (owner challenged the 13.7 kg result — owner was right)
+
+Finer-mesh re-evaluation of the round-2 recommended candidate
+(node_max 10 vs COARSE 16, 38k elements):
+
+| Case | COARSE casting ratio | FINER casting ratio |
+|---|---|---|
+| LC1S stack bearing | 0.82 | **0.23** (54 MPa) |
+| LC2 uplift | 0.77 | 0.87 |
+
+The LC1S "0.82" that drove the round-2 mass to 13.7 kg was a ~3.6x
+COARSE-MESH ARTIFACT: extrapolated nodal peaks at the bearing-band
+pressure edges. The true stack path is near-pure compression through the
+plate (mean ~31 MPa) - the plate carries 203 kN almost for free, exactly
+as first principles predicted for coincident ring-to-ring bearing. The
+round-2 optimiser armoured the casting against a ghost; its 13.7 kg
+recommendation is RETRACTED. LC2 (uplift, bearing 0.91 + collar casting
+0.87) is the real governing case and is slightly WORSE at finer mesh.
+
+Round-3 fixes before the next search: evaluate the LC1S casting peak
+outside the bearing-application zone (St. Venant exclusion, documented)
+or at finer local mesh; consider the casting-grade lever (A148 80-50,
+Fy 345, already in params: casting ratios / 1.44). Corrected plate-on
+optimum ESTIMATE pending re-run: ~8-9 kg at A27, less at A148.
