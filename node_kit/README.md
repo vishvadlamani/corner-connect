@@ -497,3 +497,16 @@ node_kit/
   validation/        # closed-form benchmark cases               [Milestone 3]
   runs/              # results.parquet + artifacts (gitignored)
 ```
+
+## Base plate x split spine (owner question, 2026-08)
+
+The two features compose: `spine_split=True` + `base_plate_thickness=12`
+builds valid and molds with 0 trapped columns (each half of a pinwheel
+pair seats its own pocket post; the optimised winner gains +2.1 kg ->
+8.59 kg). The optimised search ran PLATE-OFF deliberately: its load set
+assumes storey gravity crosses joints by panel platform stacking (AISI
+in-line framing - post lands over post through the floor package), the
+panelized LGSF norm. Enable the plate - and the bearing load cases plus a
+post-end web-crippling check - wherever posts bear ON the node instead:
+base/transfer levels, or kit-wide if the stacking detail says so. That
+choice is the owner's stacking-detail decision, recorded here.
