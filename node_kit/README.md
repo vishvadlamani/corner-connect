@@ -559,3 +559,45 @@ outside the bearing-application zone (St. Venant exclusion, documented)
 or at finer local mesh; consider the casting-grade lever (A148 80-50,
 Fy 345, already in params: casting ratios / 1.44). Corrected plate-on
 optimum ESTIMATE pending re-run: ~8-9 kg at A27, less at A148.
+
+## What this repository IS and IS NOT (read first)
+
+This is a DESIGN-EXPLORATION PIPELINE, not a certified design. Nothing in
+this repository may be fabricated for occupied structures as-is. Its job:
+find the shape worth spending real engineering and test money on, with
+every assumption written down and every number traceable to a code clause
+or a validated model - so a licensed engineer can review it efficiently
+instead of reverse-engineering it.
+
+## Path to a real, legal, safe product (in order)
+
+1. ENGAGE A LICENSED STRUCTURAL ENGINEER (CFS experience) NOW - as the
+   design authority, not a rubber stamp at the end. Every UNVERIFIED flag
+   in this README is a line item on their checklist.
+2. REAL INPUTS: site loads per ASCE 7 (wind drives the governing uplift
+   case), real bay/storey geometry, the roll-former's actual section and
+   coil certs, actual fastener specs. Until then every result here is
+   norm-based scaffolding.
+3. VERIFY THE CODE LAYER: obtain AISI S100 and the Design Manual; confirm
+   every memory-quoted table value, clause number, phi/Omega in the
+   UNVERIFIED register; fill the four skipped worked-example tests. The
+   DCR layer deliberately refuses to run until factors are confirmed.
+4. INDEPENDENT ANALYSIS: engineer hand-checks the governing limit states;
+   final candidate re-analysed at production mesh density (the 13.7 kg
+   retraction in this log shows exactly why screening-mesh numbers are
+   never design numbers) and ideally cross-checked in a second solver.
+5. PHYSICAL TESTING - the step no software replaces. Prototype castings
+   with material certs and NDT appropriate to structural castings;
+   full-scale joint tests (monotonic, and cyclic if seismic governs) per
+   AISI S100 rational-analysis-plus-testing provisions; for a proprietary
+   connector sold as a product, an ICC-ES evaluation report is the
+   standard route to jurisdiction acceptance.
+6. FOUNDRY QUALIFICATION: first articles, dimensional CMM against the
+   as-machined drawing, casting quality levels agreed against the
+   hot-spot and section findings flagged in this log.
+7. SEALED CALCULATIONS AND PLAN REVIEW in the jurisdiction of use.
+
+The honest division of labour: this pipeline explores thousands of
+variants and keeps the reasoning auditable; the engineer owns the design;
+the test lab proves it; the jurisdiction accepts it. Lives depend on
+steps 1-7, not on this repository.
