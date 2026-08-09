@@ -601,3 +601,29 @@ The honest division of labour: this pipeline explores thousands of
 variants and keeps the reasoning auditable; the engineer owns the design;
 the test lab proves it; the jurisdiction accepts it. Lives depend on
 steps 1-7, not on this repository.
+
+## Materials: casting grade, and mixing cast steel with CFS
+
+Current spec: ASTM A27 Gr 65-35 (Fy 240 / Fu 450) - a MILD, ductile cast
+carbon steel, not high-strength, chosen deliberately: cheap, easy to
+cast, tough. Upgrade lever already in params: A148 Gr 80-50 (Fy 345 /
+Fu 550) - drops every casting ratio by 1.44x; worthwhile because the
+uplift-governed collar region runs ~0.87 at A27. TRUE high-strength cast
+grades are NOT recommended: most of the casting is geometry-sized (min
+castable wall, bolt spacing), stiffness does not change with grade
+(E ~200 GPa for all steels), and connection design WANTS ductility -
+the intended failure hierarchy is ductile sheet bearing, never casting
+fracture. Charpy/elongation requirements and NDT per the engineer.
+
+Mixing cast steel with light-gauge steel is standard practice (racking
+connectors on 2 mm uprights, cast scaffold couplers on thin tube,
+container corner castings on corrugated sheet). Three rules:
+1. Size the connection for the THIN side - all AISI thin-sheet checks in
+   this repo run on the sheet, never the casting. Already the philosophy.
+2. Failure hierarchy: sheet bearing (ductile) governs, casting stays
+   elastic and must not be brittle. Already the check structure.
+3. CORROSION DETAIL (open item for the spec): CFS is galvanized; the
+   bare casting must be coated (paint system or hot-dip galvanized -
+   galvanize/mask before final machining of fits) with compatible coated
+   fasteners, or the casting rusts and locally consumes zinc at contact
+   points in wet service. NOT yet reflected anywhere in this repo.
