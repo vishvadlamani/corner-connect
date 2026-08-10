@@ -859,5 +859,26 @@ bends. CONSEQUENCES, honestly stated:
   extended: no peak adjacent to a load patch OR restraint patch is
   quotable without local refinement AND a BC-sensitivity check.
 
-Trend run at 1.6 mm on the rigid-seat model: in flight at commit time;
-result appended below when it lands.
+Trend run at 1.6 mm on the rigid-seat model
+(runs/collar_local_refine16.json, 158,604 tets, peak-local edges
+1.3-2.5 mm): 231.2 MPa, ratio 0.964, same twin location. The series is
+now 151 -> 204 -> 231 with NO plateau: the rigid-seat peak DIVERGES
+under refinement, exactly as the standoff profile predicted. Final
+disposition for the collar region under LC2:
+
+* NO number from the solo model is certifiable there - the rigid-seat
+  peak diverges, and the seat-pressure counter-model exposes solo-half
+  spine bending (>=0.91) that the real bolted pair clamps.
+* The optimiser may keep the rigid-seat coarse-mesh peak as a RELATIVE
+  screen (identical BC and mesh policy across all candidates,
+  simplification #13) - but pass/fail near 1.0 is meaningless for the
+  collar, and the earlier "0.63"/"0.85" collar quotes are all
+  superseded by this disposition.
+* Certification path: PAIRED twin model (both halves, spine bolts,
+  mating-plane contact) with a deformable washer/nut at the seat.
+  Cheap intermediate available on request: symmetry BC on the mating
+  plane (= perfectly clamped pair, upper-bound clamping) with the seat
+  as bearing pressure.
+* Post-wall bearing 0.74 (J3.3.2, provisional phi/Omega) remains the
+  governing CODE check for candidate A and is unaffected by any of
+  this (it derives from bolt spring forces, stable across all runs).
