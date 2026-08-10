@@ -353,25 +353,56 @@ DESIGN_METHOD = "LRFD"
 LF_DEAD, LF_LIVE, LF_WIND, LF_DEAD_COUNTER = 1.2, 1.6, 1.0, 0.9
 
 
-def default_load_cases(n_storeys: int = N_STOREYS_DEFAULT) -> list[LoadCase]:
-    """The five contract load cases at NORM-DERIVED magnitudes (LRFD level).
+@dataclass(frozen=True)
+class NodeActions:
+    """UNFACTORED node-level actions from ONE load source (a 'primitive').
+
+    Same sign convention as LoadCase, with one extension: rod_tension_N is
+    NEGATIVE for gravity sources - dead weight relieves rod uplift. The
+    net is clamped to >= 0 only at combination time, never here.
+
+    DOUBLE-REPRESENTATION WARNING (single-node model): for a gravity
+    source, axial_N (accumulated compression down the post) and
+    rod_tension_N (counterweight relief on the rod anchor) are two
+    representations of the SAME physical weight along different transfer
+    paths. A combination must take at most one of them - which one is
+    chosen by the path the case interrogates (compression path: axial;
+    uplift path: rod relief). combine() forces this choice through its
+    required `components` argument.
+    """
+
+    axial_N: float = 0.0
+    rod_tension_N: float = 0.0
+    shear_x_N: float = 0.0
+    shear_y_N: float = 0.0
+
+
+def primitive_actions(n_storeys: int = N_STOREYS_DEFAULT
+                      ) -> dict[str, NodeActions]:
+    """Primitive (single-source, unfactored) action vectors: D, L, W.
+
+    Independent-review finding 6 (round 2, 2026-08): the load layer stores
+    PRIMITIVE action vectors per source and forms combinations exactly
+    once, in combine(). Nothing downstream may add a D/L/W-derived force
+    to an already-combined case - that is how the retired LC6 accidentally
+    double-counted the 0.9D relief (LC2's rod tension was already net of
+    the counterweight; LC6 then re-applied 0.9D beam reactions).
 
     Tributary model (documented so the sealing engineer can strike any line):
       * Building-corner node of a BAY_M x BAY_M grid; tributary floor area
         A = (BAY_M/2)^2 per storey.
       * One-way joists: one beam at the corner carries the floor strip
-        (w = qu * BAY_M/2, end reaction w*L/2 = qu*A), the orthogonal beam
-        carries facade only. The kit is symmetric, so BOTH brackets are
-        designed for the floor-beam reaction (LC3 and LC4 individually);
-        the combined case LC5 pairs one floor beam with one facade beam,
-        which is the realizable simultaneous condition.
-      * Gravity: qu = 1.2*D + 1.6*L per storey; axial accumulates linearly
-        over n_storeys.
-      * Uplift LC2: wind overturning of one braced corner line -
-        storey force = WIND_PRESSURE_KPA * BAY_M * STOREY_M at each level,
-        overturning moment about the base over lever arm BAY_M, minus the
-        0.9*D counterweight tributary to the corner. WIND_PRESSURE_KPA is a
-        PLACEHOLDER (site-specific); everything downstream of it is too.
+        (w = q * BAY_M/2, end reaction w*L/2 = q*A), the orthogonal beam
+        carries facade only (dead, no live).
+      * Gravity axial accumulates linearly over n_storeys; beam reactions
+        are own-storey only (load path assumption below).
+      * Wind W: overturning of one braced corner line - storey force
+        WIND_PRESSURE_KPA * BAY_M * STOREY_M at each level, overturning
+        moment about the base over lever arm BAY_M, expressed as GROSS rod
+        tension (no dead relief - relief lives in D.rod_tension_N so the
+        0.9 factor lands on it exactly once, at combination time).
+        WIND_PRESSURE_KPA is a PLACEHOLDER (site-specific); everything
+        downstream of it is too.
 
     LOAD PATH ASSUMPTION (unchanged, engineer to confirm): accumulated
     compression crosses each storey joint by post continuity or direct
@@ -381,42 +412,131 @@ def default_load_cases(n_storeys: int = N_STOREYS_DEFAULT) -> list[LoadCase]:
     if n_storeys < 1:
         raise ValueError("n_storeys must be >= 1")
     n = float(n_storeys)
-    A_trib = (BAY_M / 2.0) ** 2                              # m^2
-    qu = LF_DEAD * FLOOR_DEAD_KPA + LF_LIVE * FLOOR_LIVE_KPA  # kPa (kN/m^2)
-    per_storey_N = qu * A_trib * 1e3                          # N
-    floor_beam_reaction_N = per_storey_N                      # = w*L/2, see docstring
-    facade_beam_reaction_N = (LF_DEAD * FACADE_DEAD_KPA
-                              * STOREY_M * (BAY_M / 2.0) * 1e3)
+    A_trib = (BAY_M / 2.0) ** 2                               # m^2
 
     storey_shear_N = WIND_PRESSURE_KPA * BAY_M * STOREY_M * 1e3
-    m_ot_Nm = sum(storey_shear_N * STOREY_M * i for i in range(1, n_storeys + 1))
-    counterweight_N = LF_DEAD_COUNTER * FLOOR_DEAD_KPA * A_trib * 1e3 * n
-    uplift_N = max(0.0, LF_WIND * m_ot_Nm / BAY_M - counterweight_N)
+    m_ot_Nm = sum(storey_shear_N * STOREY_M * i
+                  for i in range(1, n_storeys + 1))
 
+    return {
+        "D": NodeActions(
+            axial_N=n * FLOOR_DEAD_KPA * A_trib * 1e3,
+            rod_tension_N=-n * FLOOR_DEAD_KPA * A_trib * 1e3,  # relief
+            shear_x_N=FLOOR_DEAD_KPA * A_trib * 1e3,
+            shear_y_N=FACADE_DEAD_KPA * STOREY_M * (BAY_M / 2.0) * 1e3),
+        "L": NodeActions(
+            axial_N=n * FLOOR_LIVE_KPA * A_trib * 1e3,
+            shear_x_N=FLOOR_LIVE_KPA * A_trib * 1e3),
+        "W": NodeActions(
+            rod_tension_N=m_ot_Nm / BAY_M),
+    }
+
+
+_COMPONENTS = ("axial", "rod_tension", "shear_x", "shear_y")
+
+
+def combine(case_id: str, description: str, factors: dict[str, float],
+            components: tuple[str, ...],
+            n_storeys: int = N_STOREYS_DEFAULT,
+            primitives: dict[str, NodeActions] | None = None) -> LoadCase:
+    """THE combination layer: LoadCase = sum(factor * primitive), once.
+
+    `components` is deliberately required: it names which action
+    components the case keeps (an envelope decision, made visibly), and
+    it is how the caller resolves NodeActions' double-representation of
+    gravity (never keep 'axial' and 'rod_tension' relief in the same case
+    unless the model genuinely carries both paths).
+
+    A net-negative rod term (gravity fully suppresses uplift) clamps to 0.
+    """
+    unknown = set(components) - set(_COMPONENTS)
+    if unknown:
+        raise ValueError(f"unknown components: {sorted(unknown)}")
+    prim = primitives if primitives is not None \
+        else primitive_actions(n_storeys)
+    total = {c: sum(f * getattr(prim[src], c + "_N")
+                    for src, f in factors.items())
+             for c in _COMPONENTS}
+    total["rod_tension"] = max(0.0, total["rod_tension"])
+    for c in _COMPONENTS:
+        if c not in components:
+            total[c] = 0.0
+    return LoadCase(case_id, description,
+                    axial_N=total["axial"],
+                    rod_tension_N=total["rod_tension"],
+                    shear_x_N=total["shear_x"],
+                    shear_y_N=total["shear_y"])
+
+
+def default_load_cases(n_storeys: int = N_STOREYS_DEFAULT) -> list[LoadCase]:
+    """The five contract load cases at NORM-DERIVED magnitudes (LRFD level).
+
+    Every case is factor * primitive via combine() (reviewer finding 6);
+    magnitudes are unchanged from the pre-refactor contract. The kit is
+    symmetric, so BOTH brackets are designed for the floor-beam reaction:
+    LC4 is LC3 mirrored onto the other leg (a symmetry envelope, not a new
+    combination). LC5 pairs one floor beam with one facade beam - the
+    realizable simultaneous condition. LC2 keeps only the rod component:
+    the round-1 superposition study (runs/review_combined/) showed
+    companion beam verticals RELIEVE the uplift case, so rod-only is the
+    conservative envelope. The former LC6 is retired to
+    superposition_diagnostics() - it double-counted the 0.9D relief.
+    """
+    prim = primitive_actions(n_storeys)
+    lc3 = combine("LC3", "bracket shear X (floor-beam end reaction, "
+                         "own storey, 1.2D+1.6L)",
+                  {"D": LF_DEAD, "L": LF_LIVE}, components=("shear_x",),
+                  primitives=prim)
     return [
-        LoadCase("LC1", f"axial compression (gravity, {n_storeys} storeys, LRFD)",
-                 axial_N=n * per_storey_N),
-        LoadCase("LC2", f"rod uplift (wind overturning, {n_storeys} storeys, "
-                        "0.9D counterweight, PLACEHOLDER wind)",
-                 rod_tension_N=uplift_N),
-        LoadCase("LC3", "bracket shear X (floor-beam end reaction, own storey)",
-                 shear_x_N=floor_beam_reaction_N),
-        LoadCase("LC4", "bracket shear Y (floor-beam end reaction, own storey)",
-                 shear_y_N=floor_beam_reaction_N),
-        LoadCase("LC5", "combined: stacked gravity + floor beam X + facade beam Y",
-                 axial_N=n * per_storey_N,
-                 shear_x_N=floor_beam_reaction_N,
-                 shear_y_N=facade_beam_reaction_N),
-        # LC6 added after independent review (2026-08): the wind event that
-        # produces the rod uplift ALSO loads the beams - under 0.9D+1.0W the
-        # beams still bear DOWN with their 0.9*dead reactions while the rod
-        # sees full uplift. This is the physically consistent companion
-        # action set for the uplift case (LC2 alone under-tests the collar
-        # region if shear worsens it - reviewer finding, resolved by running).
-        LoadCase("LC6", "wind combined: rod uplift + 0.9D beam reactions",
-                 rod_tension_N=uplift_N,
-                 shear_x_N=LF_DEAD_COUNTER * FLOOR_DEAD_KPA
-                 * (BAY_M / 2.0) ** 2 * 1e3,
-                 shear_y_N=LF_DEAD_COUNTER * FLOOR_DEAD_KPA
-                 * (BAY_M / 2.0) ** 2 * 1e3),
+        combine("LC1", f"axial compression (gravity, {n_storeys} storeys, "
+                       "LRFD 1.2D+1.6L)",
+                {"D": LF_DEAD, "L": LF_LIVE}, components=("axial",),
+                primitives=prim),
+        combine("LC2", f"rod uplift (wind overturning, {n_storeys} storeys, "
+                       "0.9D+1.0W, PLACEHOLDER wind)",
+                {"D": LF_DEAD_COUNTER, "W": LF_WIND},
+                components=("rod_tension",), primitives=prim),
+        lc3,
+        LoadCase("LC4", "bracket shear Y (LC3 mirrored - symmetric kit)",
+                 shear_y_N=lc3.shear_x_N),
+        combine("LC5", "combined: stacked gravity + floor beam X + facade "
+                       "beam Y (1.2D+1.6L)",
+                {"D": LF_DEAD, "L": LF_LIVE},
+                components=("axial", "shear_x", "shear_y"),
+                primitives=prim),
+    ]
+
+
+def superposition_diagnostics(n_storeys: int = N_STOREYS_DEFAULT
+                              ) -> list[LoadCase]:
+    """NOT design cases - single-node superposition sensitivity studies
+    (reviewer findings 6 and 7, round 2). Retained because they PROVED the
+    relief physics in round 1 (runs/review_combined/): uplift and beam
+    verticals enter through the same bracket rims with opposite signs.
+
+    * LCS1 (formerly LC6): net rod uplift + 0.9D own-storey beam
+      reactions. Physically motivated but double-counts the local floor's
+      relief (already inside the rod counterweight), so it is a LOWER
+      bound companion - never an envelope.
+    * LCS2 (formerly mis-named 'bounding'): net uplift + FULL factored
+      beam verticals on both legs. Maximizes CANCELLATION - it proves the
+      shared-entry-point superposition and nothing more.
+    """
+    prim = primitive_actions(n_storeys)
+    net_uplift_N = max(0.0, LF_WIND * prim["W"].rod_tension_N
+                       + LF_DEAD_COUNTER * prim["D"].rod_tension_N)
+    full_beam_N = LF_DEAD * prim["D"].shear_x_N + LF_LIVE * prim["L"].shear_x_N
+    return [
+        LoadCase("LCS1", "superposition diagnostic: net uplift + 0.9D beam "
+                         "reactions (double-counts local relief; lower "
+                         "bound, NOT an envelope)",
+                 rod_tension_N=net_uplift_N,
+                 shear_x_N=LF_DEAD_COUNTER * prim["D"].shear_x_N,
+                 shear_y_N=LF_DEAD_COUNTER * prim["D"].shear_x_N),
+        LoadCase("LCS2", "cancellation sensitivity: net uplift + FULL "
+                         "factored beam verticals (maximum cancellation; "
+                         "proves shared-entry superposition)",
+                 rod_tension_N=net_uplift_N,
+                 shear_x_N=full_beam_N,
+                 shear_y_N=full_beam_N),
     ]

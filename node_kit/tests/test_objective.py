@@ -82,3 +82,29 @@ def test_parquet_written(result, tmp_path_factory):
     assert files
     df = pd.read_parquet(files[0])
     assert len(df) == 1
+
+
+def test_refine_balls_locally_refines(tmp_path):
+    """step_to_tet_mesh refine_balls: finer edges inside the ball, more
+    elements overall, never coarser anywhere (finding 8 tooling)."""
+    import cadquery as cq
+    from node_kit.mesh import step_to_tet_mesh, volume_cells
+
+    step = str(tmp_path / "box.step")
+    cq.exporters.export(cq.Workplane("XY").box(60, 60, 60), step)
+
+    base = step_to_tet_mesh(step, size_min=8.0, size_max=15.0)
+    ref = step_to_tet_mesh(step, size_min=8.0, size_max=15.0,
+                           refine_balls=[(30.0, 30.0, 30.0, 12.0, 3.0)])
+    assert len(volume_cells(ref)) > len(volume_cells(base))
+
+    corner = np.array([30.0, 30.0, 30.0])
+    cells = volume_cells(ref)
+    pts = ref.points
+    near = [c for c in cells
+            if np.linalg.norm(pts[c[:4]].mean(axis=0) - corner) < 8.0]
+    edges = []
+    for c in near:
+        for a, b in ((0, 1), (1, 2), (2, 0), (0, 3), (1, 3), (2, 3)):
+            edges.append(np.linalg.norm(pts[c[a]] - pts[c[b]]))
+    assert np.mean(edges) < 5.0   # ~3 mm target inside the ball

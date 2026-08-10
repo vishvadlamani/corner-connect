@@ -92,9 +92,11 @@ PATCH_RADIUS_FACTOR = 1.6  # shell coupling patch radius, x bolt diameter
 class AssemblyModel:
     """Holds the merged mesh, id maps and named sets for one candidate."""
 
-    def __init__(self, p: NodeParams, sizes: AssemblySizes, workdir: str):
+    def __init__(self, p: NodeParams, sizes: AssemblySizes, workdir: str,
+                 refine_balls: list[tuple] | None = None):
         self.p = p
         self.sizes = sizes
+        self.refine_balls = refine_balls
         self.workdir = pathlib.Path(workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
         self._build()
@@ -111,7 +113,8 @@ class AssemblyModel:
         build = build_node(p, with_fillets=True, with_holes=True)
         self.build = build
         step = export_step(build, str(self.workdir / "node.step"))
-        node_mesh = step_to_tet_mesh(step, sizes.node_min, sizes.node_max)
+        node_mesh = step_to_tet_mesh(step, sizes.node_min, sizes.node_max,
+                                     refine_balls=self.refine_balls)
         self.node_cells = volume_cells(node_mesh, "tetra10")
         n_node_pts = len(node_mesh.points)
 

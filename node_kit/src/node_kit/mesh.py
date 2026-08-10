@@ -181,14 +181,38 @@ def shell_normals(points: np.ndarray, cells: np.ndarray) -> np.ndarray:
     return n / (np.linalg.norm(n, axis=1, keepdims=True) + 1e-30)
 
 
-def step_to_tet_mesh(step_path: str, size_min: float,
-                     size_max: float) -> meshio.Mesh:
-    """Generic STEP -> quadratic tet mesh (used for the node casting)."""
+def step_to_tet_mesh(step_path: str, size_min: float, size_max: float,
+                     refine_balls: list[tuple[float, float, float,
+                                              float, float]] | None = None
+                     ) -> meshio.Mesh:
+    """Generic STEP -> quadratic tet mesh (used for the node casting).
+
+    refine_balls: optional [(x, y, z, radius, size)] local h-refinement
+    regions, applied as gmsh Ball background fields. MeshSizeMin drops to
+    the smallest ball size, so curved surfaces everywhere may also refine
+    toward their curvature target (2*pi*r/20) - the refined mesh is finer
+    OR EQUAL to the unrefined one at every point, never coarser.
+    """
     with _gmsh_session():
         gmsh.model.add("step_import")
         gmsh.model.occ.importShapes(step_path)
         gmsh.model.occ.synchronize()
-        gmsh.option.setNumber("Mesh.MeshSizeMin", size_min)
+        eff_min = size_min
+        if refine_balls:
+            field_ids = []
+            for (bx, by, bz, radius, size) in refine_balls:
+                f = gmsh.model.mesh.field.add("Ball")
+                for key, val in (("XCenter", bx), ("YCenter", by),
+                                 ("ZCenter", bz), ("Radius", radius),
+                                 ("Thickness", radius),
+                                 ("VIn", size), ("VOut", size_max)):
+                    gmsh.model.mesh.field.setNumber(f, key, val)
+                field_ids.append(f)
+                eff_min = min(eff_min, size)
+            fmin = gmsh.model.mesh.field.add("Min")
+            gmsh.model.mesh.field.setNumbers(fmin, "FieldsList", field_ids)
+            gmsh.model.mesh.field.setAsBackgroundMesh(fmin)
+        gmsh.option.setNumber("Mesh.MeshSizeMin", eff_min)
         gmsh.option.setNumber("Mesh.MeshSizeMax", size_max)
         gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 20)
         gmsh.model.mesh.generate(3)
