@@ -741,3 +741,28 @@ with HORIZONTAL drag/brace forces - our shear cases are vertical beam
 reactions by definition; true lateral force paths cannot be modelled
 until the owner fixes the bracing scheme. That, not vertical-shear
 interaction, is the missing envelope. Elevated in open items.
+
+## Reviewer finding 5 (collar mesh convergence), RESOLVED
+## (runs/collar_convergence.json)
+
+Question posed: is the collar/casting peak under the governing uplift
+case a converged number or a mesh-sensitive one? (Motivated by our own
+LC1S audit, where the plate-on bearing peak swung 0.82 -> 0.23 at finer
+mesh - a pressure-band edge-extrapolation artifact we retracted.)
+
+Candidate A, LC2 uplift envelope (86.4 kN rod tension), three global
+mesh densities on the full casting+post+bolts assembly:
+
+| Mesh | tet elements | casting vM peak | ratio vs Fy=240 |
+|---|---|---|---|
+| coarse (16 mm) | 11,543 | 151.0 MPa | 0.629 |
+| mid (12 mm) | 16,111 | 150.3 MPa | 0.626 |
+| fine (10 mm) | 23,610 | 151.1 MPa | 0.630 |
+
+Verdict: CONVERGED. Peak varies <0.5% while element count doubles.
+Unlike the LC1S artifact (load applied over a shrinking pressure band,
+peak chased the band edge), the uplift path loads the collar through
+bolt couplings and broad contact - no singular application point - so
+the 0.63 utilisation is a stable, quotable screening number. Contrast
+retained in the simplifications log: any case that applies pressure to
+a geometric sliver must be re-meshed locally before its peak is quoted.
