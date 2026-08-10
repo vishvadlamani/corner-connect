@@ -172,6 +172,8 @@ continuous through the rod hole. Consequences, encoded in
 | 11 | LC1 applied as collar-annulus bearing (Architecture B stack path) | Worst case for the casting; under Architecture A it vanishes into post continuity |
 | 12 | LC3/LC4 magnitudes applied as VERTICAL (−z) forces at the face-A/face-B bracket rims | They are floor-beam END REACTIONS (gravity shear); the load-case "x/y" labels the beam's span direction, not the force direction |
 | 13 | Casting/post utilization = peak nodal von Mises vs Fy | Peak sits at coupling/re-entrant regions and is mesh-sensitive; conservative screening indicator, engineer reviews the field, not just the peak |
+| 14 | Assembly models the SOLO half-casting: no twin, no spine bolts, no mating-plane contact; full load case assigned to one half | Conservative for compression/shear paths (twin only adds stiffness and shares load). NOT sufficient for the collar under uplift: the round-2 seat-pressure study showed the unclamped solo half bends about the spine (>=0.91 there) exactly where the pair is bolted+bearing-clamped. PAIRED-ASSEMBLY FEA (with spine bolts and a deformable washer) is REQUIRED to certify the collar region - elevated to the engineer register |
+| 15 | LC2 uplift reacted by a rigid collar-seat plane (uz=0 annulus) | Idealizes the nut/washer AND, accidentally, part of the twin's symmetry restraint. Rigid plane and uniform seat pressure bracket the washer; the seat-edge peak under this BC is boundary-layer-dominated and must not be quoted as converged (round-2 finding 8) |
 
 ## Candidate evaluation (Milestone 6)
 
@@ -702,7 +704,9 @@ Second AI reviewer, working from the handoff pack, returned five items:
 1. **ACCEPTED - real gap**: no combined uplift+shear load case (wind gives
    both simultaneously). LC6 (rod uplift + 0.9D beam reactions) added to
    the contract set; bounding uplift+full-shear case run alongside.
-   Results in runs/review_combined/.
+   Results in runs/review_combined/. [Round-2 postscript: LC6 was then
+   RETIRED from the contract - it double-counts dead relief - and both
+   study cases live on as diagnostics LCS1/LCS2; see round 2, finding 6.]
 2. ACCEPTED - wording: results are "FEA-screened geometry with provisional
    code-equation checks", NOT validated capacity, until placeholders and
    phi/Omega are locked. Handoff pack re-worded.
@@ -724,8 +728,14 @@ combined uplift+shear worsen the collar? Candidate A, screening mesh:
 | Case | casting vM | casting ratio | bearing DCR |
 |---|---|---|---|
 | LC2 uplift alone | 151 MPa | 0.63 | 0.74 |
-| LC6 uplift + 0.9D beam verticals | 117 MPa | 0.49 | 0.58 |
-| "bounding" uplift + FULL beam verticals | 9 MPa | 0.04 | 0.05 |
+| LCS1 uplift + 0.9D beam verticals (ex-LC6) | 117 MPa | 0.49 | 0.58 |
+| LCS2 uplift + FULL beam verticals (ex-"bounding") | 9 MPa | 0.04 | 0.05 |
+
+(Case names per round-2 findings 6+7: LC6 is retired from the design
+contract - it double-counts the 0.9D relief already inside LC2's rod
+tension - and lives on as superposition diagnostic LCS1; the "bounding"
+label was wrong - the case maximizes CANCELLATION, not demand - and is
+now LCS2, a sensitivity case. Both in params.superposition_diagnostics.)
 
 ANSWER + the real lesson: at this node, uplift and vertical beam
 reactions are NOT independent actions - both enter through the same
@@ -742,8 +752,8 @@ reactions by definition; true lateral force paths cannot be modelled
 until the owner fixes the bracing scheme. That, not vertical-shear
 interaction, is the missing envelope. Elevated in open items.
 
-## Reviewer finding 5 (collar mesh convergence), RESOLVED
-## (runs/collar_convergence.json)
+## Reviewer finding 5 (collar mesh convergence) — first pass; verdict
+## RETRACTED in round 2 (runs/collar_convergence.json)
 
 Question posed: is the collar/casting peak under the governing uplift
 case a converged number or a mesh-sensitive one? (Motivated by our own
@@ -759,10 +769,95 @@ mesh densities on the full casting+post+bolts assembly:
 | mid (12 mm) | 16,111 | 150.3 MPa | 0.626 |
 | fine (10 mm) | 23,610 | 151.1 MPa | 0.630 |
 
-Verdict: CONVERGED. Peak varies <0.5% while element count doubles.
-Unlike the LC1S artifact (load applied over a shrinking pressure band,
-peak chased the band edge), the uplift path loads the collar through
-bolt couplings and broad contact - no singular application point - so
-the 0.63 utilisation is a stable, quotable screening number. Contrast
-retained in the simplifications log: any case that applies pressure to
-a geometric sliver must be re-meshed locally before its peak is quoted.
+Verdict AS FIRST WRITTEN: converged (<0.5% drift while elements double).
+RETRACTED after round-2 review (finding 8): the verdict was wrong.
+Interrogating the three meshes (runs/collar_evidence.json) showed the
+actual element edges AT the hotspot were 5-12 mm in all three runs - the
+global size ladder never refined the peak region locally, and the flat
+151 MPa was three meshes under-resolving the same feature the same way.
+Local h-refinement (2 mm ball at the hotspot) moved the peak +35%.
+Full story, numbers and the boundary-condition diagnosis: "Independent
+review round 2" below. Second retraction forced by scrutiny (after the
+13.7 kg LC1S artifact); both times the error direction was the same -
+a too-coarse mesh flattering the design. The standing rule from LC1S
+("any case that loads a geometric sliver must be re-meshed locally
+before its peak is quoted") now extends to restraint patches too.
+
+## Independent review round 2 (2026-08) — findings and dispositions
+
+Second AI reviewer, responding to the round-1 resolutions. Four items:
+
+1. **Finding 6 ACCEPTED, IMPLEMENTED — load-primitive architecture.**
+   The reviewer spotted that LC2's 86.4 kN is already net of the 0.9D
+   counterweight, so LC6 (added in round 1) re-applying 0.9D beam
+   reactions double-counted the relief. params.py now stores primitive
+   unfactored action vectors D/L/W (wind = GROSS overturning tension;
+   dead relief = negative rod term on D) and forms every combination
+   exactly once in combine(), which requires an explicit component mask
+   (also forcing the axial-vs-rod-relief choice - both represent the
+   same weight on different paths in a single-node model). Contract
+   magnitudes LC1-LC5 unchanged, frozen by tests/test_params.py. LC6
+   RETIRED from the contract.
+2. **Finding 7 ACCEPTED — naming.** "Bounding" was wrong: that case
+   maximizes CANCELLATION, not demand. Both study cases live on as
+   params.superposition_diagnostics(): LCS1 (ex-LC6, lower-bound
+   companion, NOT an envelope) and LCS2 (ex-"bounding", max-cancellation
+   sensitivity).
+3. **Finding 8 ACCEPTED — and it caught a real error.** The reviewer
+   asked for local element sizes, element order, elements through
+   thickness, and hotspot position before accepting the 16/12/10 mm
+   sweep as convergence. Interrogation (runs/collar_evidence.json):
+   C3D10 quadratic throughout, but hotspot-local edges were 5-12 mm in
+   ALL THREE runs (~1.5-2 elements through the 13.2 mm wall), hotspot
+   flipping between diagonal-twin locations at (85,68,148)/(71,81,148).
+   The flat 151 MPa was three meshes under-resolving the same feature
+   the same way - exactly the reviewer's stated fear. Local 2 mm ball
+   refinement (145k tets): peak 204.2 MPa, ratio 0.851, +35%, same
+   location. VERDICT: the round-1 "converged 0.63" claim is RETRACTED.
+4. **Lateral system AGREED as the blocking owner decision** (sheathed
+   shear walls vs strap-braced bays give the node different force
+   vectors; uplift + horizontal drag stays unmodellable until chosen).
+   No further casting optimisation until it's made.
+
+## Round 2 deep-dive: what the collar peak actually is
+## (runs/collar_standoff.json, runs/collar_seat_pressure.json)
+
+Standoff analysis on the refined run relocated the problem: the entire
+peak lives within ~4 mm of the COLLARTOP restraint (the rigid uz=0
+annulus idealizing the rod nut/washer seat) - 204 MPa at 4.2 mm from
+the patch, 116 at 6.2 mm, 81 beyond 10 mm. A boundary-layer profile at
+an idealized rigid patch does not converge under refinement; the mesh
+question turned into a BOUNDARY-CONDITION question.
+
+So the opposite bound was run (runs/collar_seat_pressure.json): uniform
+bearing pressure on the seat annulus (66 MPa = 86.4 kN on the split
+casting's 1305 mm2 half-annulus - full load conservatively on one half,
+as in every LC2 study), bracket rims as the support. Result: seat-edge
+peak collapses, but the SOLO half-casting now bends about its spine -
+218 MPa / 0.91 at the boss barrel (r=26 mm from the rod axis, z=123),
+far from both BC regions but OUTSIDE the refined balls, so >=0.91 and
+itself under-resolved.
+
+THE REAL FINDING: the two BC models disagree (0.34 vs >=0.91 far-field)
+because the solo-half-casting abstraction breaks down under seat
+loading. The FEA has never modelled the twin casting, the 6 spine
+bolts, or mating-plane contact (simplification #14) - and the rigid
+seat plane was accidentally emulating part of the twin's symmetry
+restraint. Under uplift the pair is clamped exactly where the solo half
+bends. CONSEQUENCES, honestly stated:
+* The collar/spine utilisation under LC2 CANNOT currently be quoted as
+  a single converged number. Defensible statement: 0.85 (mesh-resolved,
+  rigid-seat idealization) with the paired-assembly + deformable-washer
+  model REQUIRED to certify the region. Elevated on the engineer
+  register from "variant" to "required".
+* Post-wall bearing (0.74-0.75, J3.3.2 provisional) remains the
+  governing CODE check; the reviewer's preferred hierarchy (commodity
+  post governs, casting keeps margin) is SUPPORTED by the rigid-seat
+  model but NOT YET PROVEN until the paired model lands.
+* Both retractions this project has made (13.7 kg LC1S, "converged
+  0.63") came from under-resolution flattering the design. Rule
+  extended: no peak adjacent to a load patch OR restraint patch is
+  quotable without local refinement AND a BC-sensitivity check.
+
+Trend run at 1.6 mm on the rigid-seat model: in flight at commit time;
+result appended below when it lands.
