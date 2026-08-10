@@ -715,3 +715,29 @@ Second AI reviewer, working from the handoff pack, returned five items:
 5. NOTED - its priority list (post-side independent rebuild, collar mesh
    convergence, placeholder resolution, foundry review) matches the
    existing register; collar convergence sweep run alongside item 1.
+
+## Reviewer finding 1, RESOLVED WITH NUMBERS (runs/review_combined/)
+
+Question posed: is LC2 (uplift alone) a sufficient envelope, or does
+combined uplift+shear worsen the collar? Candidate A, screening mesh:
+
+| Case | casting vM | casting ratio | bearing DCR |
+|---|---|---|---|
+| LC2 uplift alone | 151 MPa | 0.63 | 0.74 |
+| LC6 uplift + 0.9D beam verticals | 117 MPa | 0.49 | 0.58 |
+| "bounding" uplift + FULL beam verticals | 9 MPa | 0.04 | 0.05 |
+
+ANSWER + the real lesson: at this node, uplift and vertical beam
+reactions are NOT independent actions - both enter through the same
+bracket rims with opposite signs, so adding beam gravity RELIEVES the
+uplift case (the "bounding" case nearly cancels to nothing; it is not a
+physical combination). Moreover LC2's 86.4 kN is already net of the 0.9D
+counterweight at building level, so LC6 double-counts dead relief and
+sits below LC2 by construction. LC2 alone therefore IS the conservative
+vertical-action envelope, and stays governing.
+
+THE GAP THAT REMAINS REAL (sharpened by this exercise): uplift combined
+with HORIZONTAL drag/brace forces - our shear cases are vertical beam
+reactions by definition; true lateral force paths cannot be modelled
+until the owner fixes the bracing scheme. That, not vertical-shear
+interaction, is the missing envelope. Elevated in open items.
