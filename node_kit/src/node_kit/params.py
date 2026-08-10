@@ -157,8 +157,14 @@ class NodeParams:
 
     # ---- tie rod ----
     rod_hole_diameter: float = 22.0   # clearance hole for the continuous rod, mm
-    boss_diameter: float = 52.0       # OD of the vertical corner boss, mm
-    boss_height: float = 5.0          # raised collar above top face / below bottom face, mm
+    boss_diameter: float = 52.0       # OD of the vertical corner SPINE boss -
+                                      # runs the FULL engagement height, mm
+    boss_height: float = 5.0          # COLLAR protrusion above the top face /
+                                      # below the bottom face only (the rod
+                                      # nut seat) - NOT the spine height.
+                                      # (Reviewer flagged the name; kept for
+                                      # results-column compatibility,
+                                      # clarified here and in README.)
 
     # ---- beam bracket interface (outer faces of the legs) ----
     # (x, z) hole positions, mm: x measured along the face from the post-face
@@ -401,4 +407,16 @@ def default_load_cases(n_storeys: int = N_STOREYS_DEFAULT) -> list[LoadCase]:
                  axial_N=n * per_storey_N,
                  shear_x_N=floor_beam_reaction_N,
                  shear_y_N=facade_beam_reaction_N),
+        # LC6 added after independent review (2026-08): the wind event that
+        # produces the rod uplift ALSO loads the beams - under 0.9D+1.0W the
+        # beams still bear DOWN with their 0.9*dead reactions while the rod
+        # sees full uplift. This is the physically consistent companion
+        # action set for the uplift case (LC2 alone under-tests the collar
+        # region if shear worsens it - reviewer finding, resolved by running).
+        LoadCase("LC6", "wind combined: rod uplift + 0.9D beam reactions",
+                 rod_tension_N=uplift_N,
+                 shear_x_N=LF_DEAD_COUNTER * FLOOR_DEAD_KPA
+                 * (BAY_M / 2.0) ** 2 * 1e3,
+                 shear_y_N=LF_DEAD_COUNTER * FLOOR_DEAD_KPA
+                 * (BAY_M / 2.0) ** 2 * 1e3),
     ]

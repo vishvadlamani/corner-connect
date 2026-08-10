@@ -695,3 +695,23 @@ sheet tier (b/t~50: sigma_cr ~ 290 MPa ~ yield) and moot for the cast
 walls (b/t~11: sigma_cr ~ 5600 MPa, 23x yield; classic k=4 plate
 formula); pressed-rib advice belongs to the future folded LIGHT node.
 Reviewer handoff pack with exact dimensions: runs/handoff.md.
+
+## Independent review round 1 (2026-08) — findings and dispositions
+
+Second AI reviewer, working from the handoff pack, returned five items:
+1. **ACCEPTED - real gap**: no combined uplift+shear load case (wind gives
+   both simultaneously). LC6 (rod uplift + 0.9D beam reactions) added to
+   the contract set; bounding uplift+full-shear case run alongside.
+   Results in runs/review_combined/.
+2. ACCEPTED - wording: results are "FEA-screened geometry with provisional
+   code-equation checks", NOT validated capacity, until placeholders and
+   phi/Omega are locked. Handoff pack re-worded.
+3. AGREED - its own buckling critique withdrawn for the casting (stocky
+   walls; elastic plate buckling far beyond yield range - its check of our
+   arithmetic matched to 3 digits); stands for the future folded tier.
+4. ACCEPTED - naming: boss_height is the COLLAR protrusion (rod nut seat),
+   the spine boss runs full height. Docstring clarified; rename deferred
+   for results-column compatibility.
+5. NOTED - its priority list (post-side independent rebuild, collar mesh
+   convergence, placeholder resolution, foundry review) matches the
+   existing register; collar convergence sweep run alongside item 1.
